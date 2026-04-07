@@ -11,10 +11,9 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import catalog.ingredient.domain.Ingredient;
-import catalog.ingredient.domain.IngredientKind;
-import catalog.ingredient.service.IngredientService;
 import com.vaadin.flow.router.RouteParameters;
+import catalog.ingredient.domain.Ingredient;
+import catalog.ingredient.service.IngredientService;
 
 @PageTitle("Ингредиенты")
 @Route(value = "ingredients", layout = MainLayout.class)
@@ -23,24 +22,34 @@ public class IngredientListView extends VerticalLayout {
     private final IngredientService ingredientService;
     private final Grid<Ingredient> grid = new Grid<>(Ingredient.class, false);
     private final TextField query = new TextField("Поиск");
-    private final ComboBox<IngredientKind> kind = new ComboBox<>("Тип");
+    private final ComboBox<String> function = new ComboBox<>("Функция");
 
     public IngredientListView(IngredientService ingredientService) {
         this.ingredientService = ingredientService;
         setSizeFull();
+
         add(new H2("Ингредиенты"));
 
         query.setPlaceholder("Название, INCI, CAS, EC, CI, синоним");
         query.setClearButtonVisible(true);
-        kind.setItems(IngredientKind.values());
-        kind.setItemLabelGenerator(value -> switch (value) {
-            case SUBSTANCE -> "Вещество";
-            case MIXTURE -> "Смесь";
-            case MATERIAL -> "Материал";
-        });
+
+        function.setPlaceholder("Начните вводить функцию");
+        function.setClearButtonVisible(true);
+        function.setAllowCustomValue(false);
+
+        function.setDataProvider(
+                DataProvider.fromFilteringCallbacks(
+                        queryDef -> ingredientService
+                                .listFunctions(queryDef.getFilter().orElse(null), queryDef.getOffset(), queryDef.getLimit())
+                                .stream(),
+                        queryDef -> ingredientService.countFunctions(queryDef.getFilter().orElse(null))
+                ),
+                filterText -> filterText == null ? null : filterText
+        );
+
         Button refresh = new Button("Найти", e -> reload());
 
-        HorizontalLayout filters = new HorizontalLayout(query, kind, refresh);
+        HorizontalLayout filters = new HorizontalLayout(query, function, refresh);
         filters.setWidthFull();
         filters.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.END);
         add(filters);
@@ -48,12 +57,14 @@ public class IngredientListView extends VerticalLayout {
         grid.addColumn(Ingredient::getIngredientId).setHeader("ID").setAutoWidth(true);
         grid.addColumn(Ingredient::getPrimaryName).setHeader("Название").setAutoWidth(true).setFlexGrow(1);
         grid.addColumn(Ingredient::getInciName).setHeader("INCI").setAutoWidth(true);
-        grid.addColumn(i -> i.getKind() == null ? "" : i.getKind().getDbValue()).setHeader("Тип").setAutoWidth(true);
+        grid.addColumn(Ingredient::getFunctionDisplay).setHeader("Функция").setAutoWidth(true).setFlexGrow(1);
         grid.addColumn(Ingredient::getCasNo).setHeader("CAS").setAutoWidth(true);
         grid.addColumn(Ingredient::getEcNo).setHeader("EC").setAutoWidth(true);
         grid.addColumn(Ingredient::getCiNo).setHeader("CI").setAutoWidth(true);
         grid.addColumn(Ingredient::getSupplierName).setHeader("Поставщик").setAutoWidth(true);
+
         grid.setSizeFull();
+
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
                 getUI().ifPresent(ui -> ui.navigate(
@@ -62,17 +73,19 @@ public class IngredientListView extends VerticalLayout {
                 ));
             }
         });
+
         add(grid);
         expand(grid);
+
         configureDataProvider();
     }
 
     private void configureDataProvider() {
         grid.setDataProvider(DataProvider.fromCallbacks(
                 queryDef -> ingredientService
-                        .search(query.getValue(), kind.getValue(), queryDef.getOffset(), queryDef.getLimit())
+                        .searchIngredients(query.getValue(), function.getValue(), queryDef.getOffset(), queryDef.getLimit())
                         .stream(),
-                queryDef -> ingredientService.countSearch(query.getValue(), kind.getValue())
+                queryDef -> ingredientService.countIngredientSearch(query.getValue(), function.getValue())
         ));
     }
 

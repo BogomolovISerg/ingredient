@@ -1,5 +1,6 @@
 package catalog.ingredient.ui;
 
+import catalog.ingredient.domain.IngredientKind;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -33,7 +34,7 @@ public class CompositionListView extends VerticalLayout {
         grid.addColumn(IngredientComponent::getFunctionRaw).setHeader("Функция").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getInputPctRaw).setHeader("Доля").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getSourceSystem).setHeader("Источник").setAutoWidth(true);
-        grid.setItems(compositionRepository.findAllWithLinks());
+        grid.setItems(compositionRepository.findAllWithLinksByParentKind(IngredientKind.MIXTURE));
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null && e.getValue().getParentIngredient() != null) {

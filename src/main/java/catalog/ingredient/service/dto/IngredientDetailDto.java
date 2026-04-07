@@ -18,7 +18,11 @@ public record IngredientDetailDto(
         List<IngredientTestLog> testLogs,
         List<IngredientComponent> components,
         List<IngredientEntryLink> regulatoryLinks,
-        List<FormulaIngredient> formulaUsages
+        List<FormulaIngredient> formulaUsages,
+        List<SpecialchemKeyValueRow> technicalProfile,
+        List<SpecialchemValueRow> products,
+        List<SpecialchemValueRow> formulations,
+        List<SpecialchemValueRow> alternatives,
+        List<SpecialchemValueRow> potentialUse
 ) {
 }
-

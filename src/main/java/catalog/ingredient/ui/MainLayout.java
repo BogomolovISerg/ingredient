@@ -31,8 +31,7 @@ public class MainLayout extends AppLayout {
         links.add(
                 createLink("Обзор", DashboardView.class, VaadinIcon.DASHBOARD),
                 createLink("Ингредиенты", IngredientListView.class, VaadinIcon.SEARCH),
-                createLink("Смеси", MixtureListView.class, VaadinIcon.CLUSTER),
-                createLink("Композиции", CompositionListView.class, VaadinIcon.CUBE),
+                createLink("Смеси", CompositionListView.class, VaadinIcon.CLUSTER),
                 createLink("Регуляторика", RegulatoryListView.class, VaadinIcon.FILE_TABLE),
                 createLink("Продукты и формы", ProductListView.class, VaadinIcon.PACKAGE),
                 createLink("Качество данных", DataQualityView.class, VaadinIcon.WARNING)

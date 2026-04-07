@@ -8,11 +8,14 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "ingredient", schema = "core")
@@ -66,6 +69,9 @@ public class Ingredient {
     @Column(name = "description_en")
     private String descriptionEn;
 
+    @Transient
+    private String functionDisplay;
+
     @OneToMany(mappedBy = "ingredient", fetch = FetchType.LAZY)
     private Set<IngredientName> names = new LinkedHashSet<>();
 
@@ -117,11 +123,143 @@ public class Ingredient {
         this.descriptionEn = descriptionEn;
     }
 
+    public String getFunctionDisplay() {
+        return functionDisplay;
+    }
+
+    public void setFunctionDisplay(String functionDisplay) {
+        this.functionDisplay = functionDisplay;
+    }
+
     public boolean isMixture() {
         return IngredientKind.MIXTURE.equals(kind);
     }
 
     public String getDisplayIdentity() {
         return primaryName + (inciName == null || inciName.isBlank() ? "" : " / " + inciName);
+    }
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
+    private Map<String, Object> payload = new LinkedHashMap<>();
+    public Map<String, Object> getPayload() {
+        return payload;
+    }
+
+    public void setPayload(Map<String, Object> payload) {
+        this.payload = payload == null ? new LinkedHashMap<>() : payload;
+    }
+
+    @Column(name = "specialchem_url")
+    private String specialchemUrl;
+
+    @Column(name = "specialchem_origin_en")
+    private String specialchemOriginEn;
+
+    @Column(name = "specialchem_origin_ru")
+    private String specialchemOriginRu;
+
+    @Column(name = "specialchem_safety_profile_en")
+    private String specialchemSafetyProfileEn;
+
+    @Column(name = "specialchem_safety_profile_ru")
+    private String specialchemSafetyProfileRu;
+
+    @Column(name = "specialchem_chem_iupac_name_en")
+    private String specialchemChemIupacNameEn;
+
+    @Column(name = "specialchem_chem_iupac_name_ru")
+    private String specialchemChemIupacNameRu;
+
+    @Column(name = "specialchem_usage_text_en")
+    private String specialchemUsageTextEn;
+
+    @Column(name = "specialchem_usage_text_ru")
+    private String specialchemUsageTextRu;
+
+    public String getSpecialchemUrl() {
+        return specialchemUrl;
+    }
+
+    public void setSpecialchemUrl(String specialchemUrl) {
+        this.specialchemUrl = specialchemUrl;
+    }
+
+    public String getSpecialchemOriginEn() {
+        return specialchemOriginEn;
+    }
+
+    public void setSpecialchemOriginEn(String specialchemOriginEn) {
+        this.specialchemOriginEn = specialchemOriginEn;
+    }
+
+    public String getSpecialchemOriginRu() {
+        return specialchemOriginRu;
+    }
+
+    public void setSpecialchemOriginRu(String specialchemOriginRu) {
+        this.specialchemOriginRu = specialchemOriginRu;
+    }
+
+    public String getSpecialchemSafetyProfileEn() {
+        return specialchemSafetyProfileEn;
+    }
+
+    public void setSpecialchemSafetyProfileEn(String specialchemSafetyProfileEn) {
+        this.specialchemSafetyProfileEn = specialchemSafetyProfileEn;
+    }
+
+    public String getSpecialchemSafetyProfileRu() {
+        return specialchemSafetyProfileRu;
+    }
+
+    public void setSpecialchemSafetyProfileRu(String specialchemSafetyProfileRu) {
+        this.specialchemSafetyProfileRu = specialchemSafetyProfileRu;
+    }
+
+    public String getSpecialchemChemIupacNameEn() {
+        return specialchemChemIupacNameEn;
+    }
+
+    public void setSpecialchemChemIupacNameEn(String specialchemChemIupacNameEn) {
+        this.specialchemChemIupacNameEn = specialchemChemIupacNameEn;
+    }
+
+    public String getSpecialchemChemIupacNameRu() {
+        return specialchemChemIupacNameRu;
+    }
+
+    public void setSpecialchemChemIupacNameRu(String specialchemChemIupacNameRu) {
+        this.specialchemChemIupacNameRu = specialchemChemIupacNameRu;
+    }
+
+    public String getSpecialchemUsageTextEn() {
+        return specialchemUsageTextEn;
+    }
+
+    public void setSpecialchemUsageTextEn(String specialchemUsageTextEn) {
+        this.specialchemUsageTextEn = specialchemUsageTextEn;
+    }
+
+    public String getSpecialchemUsageTextRu() {
+        return specialchemUsageTextRu;
+    }
+
+    public void setSpecialchemUsageTextRu(String specialchemUsageTextRu) {
+        this.specialchemUsageTextRu = specialchemUsageTextRu;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String payloadText(String... path) {
+        Object current = payload;
+        for (String key : path) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(key);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current instanceof String s ? s : String.valueOf(current);
     }
 }
