@@ -9,6 +9,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteParameters;
 import catalog.ingredient.domain.RegulatoryEntry;
 import catalog.ingredient.domain.RegulatoryListType;
 import catalog.ingredient.service.RegulatoryService;
@@ -51,7 +52,8 @@ public class RegulatoryListView extends VerticalLayout {
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
-                getUI().ifPresent(ui -> ui.navigate(RegulatoryDetailView.class, e.getValue().getEntryId().toString()));
+                getUI().ifPresent(ui -> ui.navigate(RegulatoryDetailView.class,
+                        new RouteParameters("id", e.getValue().getEntryId().toString())));
             }
         });
         add(grid);

@@ -8,6 +8,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteParameters;
 import catalog.ingredient.domain.Product;
 import catalog.ingredient.service.FormulaService;
 
@@ -37,7 +38,8 @@ public class ProductListView extends VerticalLayout {
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
-                getUI().ifPresent(ui -> ui.navigate(FormulaListView.class, e.getValue().getProductId().toString()));
+                getUI().ifPresent(ui -> ui.navigate(FormulaListView.class,
+                        new RouteParameters("id", e.getValue().getProductId().toString())));
             }
         });
 

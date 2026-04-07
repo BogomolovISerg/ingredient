@@ -9,6 +9,7 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteParameters;
 import catalog.ingredient.domain.Formula;
 import catalog.ingredient.service.FormulaService;
 
@@ -41,7 +42,8 @@ public class FormulaListView extends VerticalLayout implements BeforeEnterObserv
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
-                getUI().ifPresent(ui -> ui.navigate(FormulaDetailView.class, e.getValue().getFormulaId().toString()));
+                getUI().ifPresent(ui -> ui.navigate(FormulaDetailView.class,
+                        new RouteParameters("id", e.getValue().getFormulaId().toString())));
             }
         });
         add(grid);

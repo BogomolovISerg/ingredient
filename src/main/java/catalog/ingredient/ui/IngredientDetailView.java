@@ -3,7 +3,8 @@ package catalog.ingredient.ui;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Details;
+import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.router.RouteParameters;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
@@ -72,7 +73,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientName::getLang).setHeader("Язык").setAutoWidth(true);
         grid.addColumn(IngredientName::isPrimary).setHeader("Основное").setAutoWidth(true);
         grid.setItems(detail.names());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Синонимы и названия", grid);
     }
 
@@ -83,7 +84,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientIdentifier::isPrimary).setHeader("Основной").setAutoWidth(true);
         grid.addColumn(IngredientIdentifier::getSourceSheet).setHeader("Лист").setAutoWidth(true);
         grid.setItems(detail.identifiers());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Идентификаторы", grid);
     }
 
@@ -93,7 +94,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientRequirement::getRequirementText).setHeader("Текст").setAutoWidth(true).setFlexGrow(1);
         grid.addColumn(IngredientRequirement::getSourceSheet).setHeader("Лист").setAutoWidth(true);
         grid.setItems(detail.requirements());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Требования", grid);
     }
 
@@ -103,7 +104,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientTestLog::getTestNote).setHeader("Комментарий").setAutoWidth(true).setFlexGrow(1);
         grid.addColumn(IngredientTestLog::getSourceSheet).setHeader("Лист").setAutoWidth(true);
         grid.setItems(detail.testLogs());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Испытания", grid);
     }
 
@@ -117,7 +118,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientComponent::getFunctionRaw).setHeader("Функция").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getInputPctRaw).setHeader("Доля").setAutoWidth(true);
         grid.setItems(detail.components());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Состав смеси", grid);
     }
 
@@ -130,11 +131,12 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(link -> link.getConfidence() == null ? "" : link.getConfidence().toPlainString()).setHeader("Уверенность").setAutoWidth(true);
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
-                getUI().ifPresent(ui -> ui.navigate(RegulatoryDetailView.class, e.getValue().getEntry().getEntryId().toString()));
+                getUI().ifPresent(ui -> ui.navigate(RegulatoryDetailView.class,
+                        new RouteParameters("id", e.getValue().getEntry().getEntryId().toString())));
             }
         });
         grid.setItems(detail.regulatoryLinks());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Регуляторные связи", grid);
     }
 
@@ -148,11 +150,12 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(FormulaIngredient::getFunctionRole).setHeader("Роль").setAutoWidth(true).setFlexGrow(1);
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null && e.getValue().getFormula() != null) {
-                getUI().ifPresent(ui -> ui.navigate(FormulaDetailView.class, e.getValue().getFormula().getFormulaId().toString()));
+                getUI().ifPresent(ui -> ui.navigate(FormulaDetailView.class,
+                        new RouteParameters("id", e.getValue().getFormula().getFormulaId().toString())));
             }
         });
         grid.setItems(detail.formulaUsages());
-        grid.setHeightByRows(true);
+        grid.setAllRowsVisible(true);
         return new Details("Использование в формулах", grid);
     }
 

@@ -7,10 +7,7 @@ import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeEnterObserver;
-import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.*;
 import catalog.ingredient.domain.FormulaIngredient;
 import catalog.ingredient.service.FormulaService;
 import catalog.ingredient.service.dto.FormulaDetailDto;
@@ -34,7 +31,10 @@ public class FormulaDetailView extends VerticalLayout implements BeforeEnterObse
 
         add(new Button("Назад", e -> getUI().ifPresent(ui -> {
                     if (detail.formula().getProduct() != null) {
-                        ui.navigate(FormulaListView.class, detail.formula().getProduct().getProductId().toString());
+                        ui.navigate(
+                                FormulaListView.class,
+                                new RouteParameters("id", detail.formula().getProduct().getProductId().toString())
+                        );
                     } else {
                         ui.navigate(ProductListView.class);
                     }
@@ -59,8 +59,13 @@ public class FormulaDetailView extends VerticalLayout implements BeforeEnterObse
         grid.setItems(detail.ingredients());
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
-            if (e.getValue() != null && e.getValue().getIngredient() != null) {
-                getUI().ifPresent(ui -> ui.navigate(IngredientDetailView.class, e.getValue().getIngredient().getIngredientId().toString()));
+            var selected = e.getValue();
+            if (selected != null && selected.getIngredient() != null) {
+                String id = selected.getIngredient().getIngredientId().toString();
+                getUI().ifPresent(ui -> ui.navigate(
+                        IngredientDetailView.class,
+                        new RouteParameters("id", id)
+                ));
             }
         });
         add(grid);
