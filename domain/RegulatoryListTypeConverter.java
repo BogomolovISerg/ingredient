@@ -15,3 +15,4 @@ public class RegulatoryListTypeConverter implements AttributeConverter<Regulator
         return RegulatoryListType.fromDb(dbData);
     }
 }
+

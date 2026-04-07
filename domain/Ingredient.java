@@ -24,7 +24,7 @@ public class Ingredient {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "kind", nullable = false)
+    @Column(name = "kind", nullable = false, columnDefinition = "core.ingredient_kind")
     private IngredientKind kind;
 
     @Column(name = "primary_name", nullable = false)
@@ -60,11 +60,11 @@ public class Ingredient {
     @Column(name = "sds_url")
     private String sdsUrl;
 
-    @Column(name = "description_ru")
-    private String descriptionRu;
-
     @Column(name = "description_en")
     private String descriptionEn;
+
+    @Column(name = "description_ru")
+    private String descriptionRu;
 
     @OneToMany(mappedBy = "ingredient", fetch = FetchType.LAZY)
     private Set<IngredientName> names = new LinkedHashSet<>();
@@ -98,24 +98,12 @@ public class Ingredient {
     public void setSupplierCode(String supplierCode) { this.supplierCode = supplierCode; }
     public String getSdsUrl() { return sdsUrl; }
     public void setSdsUrl(String sdsUrl) { this.sdsUrl = sdsUrl; }
+    public String getDescriptionEn() { return descriptionEn; }
+    public void setDescriptionEn(String descriptionEn) { this.descriptionEn = descriptionEn; }
+    public String getDescriptionRu() { return descriptionRu; }
+    public void setDescriptionRu(String descriptionRu) { this.descriptionRu = descriptionRu; }
     public Set<IngredientName> getNames() { return names; }
     public Set<IngredientIdentifier> getIdentifiers() { return identifiers; }
-
-    public String getDescriptionRu() {
-        return descriptionRu;
-    }
-
-    public void setDescriptionRu(String descriptionRu) {
-        this.descriptionRu = descriptionRu;
-    }
-
-    public String getDescriptionEn() {
-        return descriptionEn;
-    }
-
-    public void setDescriptionEn(String descriptionEn) {
-        this.descriptionEn = descriptionEn;
-    }
 
     public boolean isMixture() {
         return IngredientKind.MIXTURE.equals(kind);

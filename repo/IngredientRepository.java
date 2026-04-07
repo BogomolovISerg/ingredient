@@ -25,6 +25,8 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
            or lower(coalesce(i.casNo, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(i.ecNo, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(i.ciNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.descriptionEn, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.descriptionRu, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
         order by i.primaryName asc
@@ -41,6 +43,8 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
            or lower(coalesce(i.casNo, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(i.ecNo, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(i.ciNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.descriptionEn, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.descriptionRu, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
           and i.kind = :kind

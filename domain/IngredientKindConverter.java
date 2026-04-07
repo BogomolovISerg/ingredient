@@ -15,3 +15,4 @@ public class IngredientKindConverter implements AttributeConverter<IngredientKin
         return IngredientKind.fromDb(dbData);
     }
 }
+

@@ -22,7 +22,7 @@ public class RegulatoryEntry {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "list_type")
+    @Column(name = "list_type", columnDefinition = "reg.substance_list_type")
     private RegulatoryListType listType;
 
     @Column(name = "eu_ref_no")
