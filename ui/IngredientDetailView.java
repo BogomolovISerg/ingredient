@@ -4,8 +4,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
@@ -32,20 +32,35 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     public IngredientDetailView(IngredientService ingredientService) {
         this.ingredientService = ingredientService;
         setSizeFull();
+        setWidthFull();
+        setPadding(true);
+        setSpacing(true);
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         removeAll();
+
         long ingredientId = Long.parseLong(event.getRouteParameters().get("id").orElseThrow());
         IngredientDetailDto detail = ingredientService.getDetail(ingredientId);
 
-        add(new Button("Назад", e -> getUI().ifPresent(ui -> ui.navigate(IngredientListView.class))),
-                new H2(detail.ingredient().getDisplayIdentity()));
+        add(
+                new Button("Назад", e -> getUI().ifPresent(ui -> ui.navigate(IngredientListView.class))),
+                new H2(detail.ingredient().getDisplayIdentity())
+        );
 
         FormLayout card = new FormLayout();
+        card.setWidthFull();
+        card.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("900px", 2)
+        );
+
         card.addFormItem(new Span(String.valueOf(detail.ingredient().getIngredientId())), "ID");
-        card.addFormItem(new Span(detail.ingredient().getKind() == null ? "" : detail.ingredient().getKind().getDbValue()), "Тип");
+        card.addFormItem(
+                new Span(detail.ingredient().getKind() == null ? "" : detail.ingredient().getKind().getDbValue()),
+                "Тип"
+        );
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getPrimaryName())), "Название");
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getInciName())), "INCI");
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getCasNo())), "CAS");
@@ -54,10 +69,12 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getSupplierName())), "Поставщик");
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getSupplierCode())), "Код поставщика");
         card.addFormItem(new Span(nullToEmpty(detail.ingredient().getSdsUrl())), "SDS URL");
-        card.addFormItem(new Pre(nullToEmpty(detail.ingredient().getDescriptionRu())), "Описание RU");
-        card.addFormItem(new Pre(nullToEmpty(detail.ingredient().getDescriptionEn())), "Описание EN");
-        card.addFormItem(new Pre(nullToEmpty(detail.ingredient().getNote())), "Примечание");
+
         add(card);
+
+        add(buildLongTextSection("Описание RU", detail.ingredient().getDescriptionRu()));
+        add(buildLongTextSection("Описание EN", detail.ingredient().getDescriptionEn()));
+        add(buildLongTextSection("Примечание", detail.ingredient().getNote()));
 
         add(sectionNames(detail));
         add(sectionIdentifiers(detail));
@@ -66,6 +83,35 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         add(sectionComponents(detail));
         add(sectionRegulatory(detail));
         add(sectionFormulaUsage(detail));
+    }
+
+    private Div buildLongTextSection(String title, String text) {
+        Div container = new Div();
+        container.setWidthFull();
+        container.getStyle().set("margin-top", "var(--lumo-space-m)");
+        container.getStyle().set("padding", "var(--lumo-space-m)");
+        container.getStyle().set("border", "1px solid var(--lumo-contrast-20pct)");
+        container.getStyle().set("border-radius", "var(--lumo-border-radius-l)");
+        container.getStyle().set("box-sizing", "border-box");
+
+        Div header = new Div();
+        header.setText(title);
+        header.getStyle().set("font-weight", "600");
+        header.getStyle().set("margin-bottom", "var(--lumo-space-s)");
+
+        Div content = new Div();
+        content.setText(nullToEmpty(text));
+        content.setWidthFull();
+        content.getStyle().set("display", "block");
+        content.getStyle().set("white-space", "pre-wrap");
+        content.getStyle().set("overflow-wrap", "anywhere");
+        content.getStyle().set("word-break", "break-word");
+        content.getStyle().set("max-width", "100%");
+        content.getStyle().set("min-width", "0");
+        content.getStyle().set("box-sizing", "border-box");
+
+        container.add(header, content);
+        return container;
     }
 
     private Details sectionNames(IngredientDetailDto detail) {
@@ -112,8 +158,12 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
 
     private Details sectionComponents(IngredientDetailDto detail) {
         Grid<IngredientComponent> grid = new Grid<>(IngredientComponent.class, false);
-        grid.addColumn(c -> c.getComponentIngredient() != null ? c.getComponentIngredient().getPrimaryName() : c.getComponentNameRaw())
-                .setHeader("Компонент").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(c -> c.getComponentIngredient() != null
+                        ? c.getComponentIngredient().getPrimaryName()
+                        : c.getComponentNameRaw())
+                .setHeader("Компонент")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(IngredientComponent::getInciRaw).setHeader("INCI").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getCasRaw).setHeader("CAS").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getEcRaw).setHeader("EC").setAutoWidth(true);
@@ -126,11 +176,15 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
 
     private Details sectionRegulatory(IngredientDetailDto detail) {
         Grid<IngredientEntryLink> grid = new Grid<>(IngredientEntryLink.class, false);
-        grid.addColumn(link -> link.getEntry().getListType() == null ? "" : link.getEntry().getListType().getDbValue()).setHeader("Тип списка").setAutoWidth(true);
+        grid.addColumn(link -> link.getEntry().getListType() == null ? "" : link.getEntry().getListType().getDbValue())
+                .setHeader("Тип списка")
+                .setAutoWidth(true);
         grid.addColumn(link -> link.getEntry().getEuRefNo()).setHeader("Позиция").setAutoWidth(true);
         grid.addColumn(link -> link.getEntry().getDisplayName()).setHeader("Наименование").setAutoWidth(true).setFlexGrow(1);
         grid.addColumn(IngredientEntryLink::getMatchMethod).setHeader("Метод связи").setAutoWidth(true);
-        grid.addColumn(link -> link.getConfidence() == null ? "" : link.getConfidence().toPlainString()).setHeader("Уверенность").setAutoWidth(true);
+        grid.addColumn(link -> link.getConfidence() == null ? "" : link.getConfidence().toPlainString())
+                .setHeader("Уверенность")
+                .setAutoWidth(true);
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
                 getUI().ifPresent(ui -> ui.navigate(
@@ -146,10 +200,18 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
 
     private Details sectionFormulaUsage(IngredientDetailDto detail) {
         Grid<FormulaIngredient> grid = new Grid<>(FormulaIngredient.class, false);
-        grid.addColumn(fi -> fi.getFormula() == null || fi.getFormula().getProduct() == null ? "" : fi.getFormula().getProduct().getDisplayName())
-                .setHeader("Продукт").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(fi -> fi.getFormula() == null ? "" : fi.getFormula().getFormulaId()).setHeader("Формула").setAutoWidth(true);
-        grid.addColumn(fi -> fi.getFormula() == null ? "" : fi.getFormula().getVersionNo()).setHeader("Версия").setAutoWidth(true);
+        grid.addColumn(fi -> fi.getFormula() == null || fi.getFormula().getProduct() == null
+                        ? ""
+                        : fi.getFormula().getProduct().getDisplayName())
+                .setHeader("Продукт")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        grid.addColumn(fi -> fi.getFormula() == null ? "" : fi.getFormula().getFormulaId())
+                .setHeader("Формула")
+                .setAutoWidth(true);
+        grid.addColumn(fi -> fi.getFormula() == null ? "" : fi.getFormula().getVersionNo())
+                .setHeader("Версия")
+                .setAutoWidth(true);
         grid.addColumn(FormulaIngredient::getPercentWw).setHeader("% масс./масс.").setAutoWidth(true);
         grid.addColumn(FormulaIngredient::getFunctionRole).setHeader("Роль").setAutoWidth(true).setFlexGrow(1);
         grid.asSingleSelect().addValueChangeListener(e -> {

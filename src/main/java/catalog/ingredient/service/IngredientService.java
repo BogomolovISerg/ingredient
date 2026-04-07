@@ -42,16 +42,34 @@ public class IngredientService {
     }
 
     public List<Ingredient> search(String query, IngredientKind kind, int limit) {
+        return search(query, kind, 0, limit);
+    }
+
+    public List<Ingredient> search(String query, IngredientKind kind, int offset, int limit) {
+        int pageSize = Math.max(1, limit);
+        int pageNumber = Math.max(0, offset / pageSize);
         String normalized = normalize(query);
-        PageRequest page = PageRequest.of(0, Math.max(1, limit));
-        return kind == null
-                ? ingredientRepository.search(normalized, page)
-                : ingredientRepository.searchByKind(normalized, kind, page);
+
+        return (kind == null
+                ? ingredientRepository.searchPage(normalized, PageRequest.of(pageNumber, pageSize))
+                : ingredientRepository.searchPageByKind(normalized, kind, PageRequest.of(pageNumber, pageSize)))
+                .getContent();
+    }
+
+    public int countSearch(String query, IngredientKind kind) {
+        String normalized = normalize(query);
+
+        long count = (kind == null)
+                ? ingredientRepository.countSearch(normalized)
+                : ingredientRepository.countSearchByKind(normalized, kind);
+
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
     public IngredientDetailDto getDetail(long ingredientId) {
         Ingredient ingredient = ingredientRepository.findWithNamesAndIdentifiersByIngredientId(ingredientId)
                 .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+
         return new IngredientDetailDto(
                 ingredient,
                 ingredient.getNames().stream().sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName())).toList(),
@@ -65,6 +83,10 @@ public class IngredientService {
     }
 
     private String normalize(String value) {
-        return value == null ? null : value.trim();
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

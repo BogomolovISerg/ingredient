@@ -8,12 +8,13 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.RouteParameters;
 import catalog.ingredient.domain.Ingredient;
 import catalog.ingredient.domain.IngredientKind;
 import catalog.ingredient.service.IngredientService;
+import com.vaadin.flow.router.RouteParameters;
 
 @PageTitle("Ингредиенты")
 @Route(value = "ingredients", layout = MainLayout.class)
@@ -55,17 +56,27 @@ public class IngredientListView extends VerticalLayout {
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
-                getUI().ifPresent(ui -> ui.navigate(IngredientDetailView.class,
-                        new RouteParameters("id", e.getValue().getIngredientId().toString())));
+                getUI().ifPresent(ui -> ui.navigate(
+                        IngredientDetailView.class,
+                        new RouteParameters("id", e.getValue().getIngredientId().toString())
+                ));
             }
         });
         add(grid);
         expand(grid);
-        reload();
+        configureDataProvider();
+    }
+
+    private void configureDataProvider() {
+        grid.setDataProvider(DataProvider.fromCallbacks(
+                queryDef -> ingredientService
+                        .search(query.getValue(), kind.getValue(), queryDef.getOffset(), queryDef.getLimit())
+                        .stream(),
+                queryDef -> ingredientService.countSearch(query.getValue(), kind.getValue())
+        ));
     }
 
     private void reload() {
-        grid.setItems(ingredientService.search(query.getValue(), kind.getValue(), 300));
+        grid.getDataProvider().refreshAll();
     }
 }
-
