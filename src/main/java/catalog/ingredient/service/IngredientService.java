@@ -4,12 +4,13 @@ import catalog.ingredient.domain.Ingredient;
 import catalog.ingredient.domain.IngredientKind;
 import catalog.ingredient.repo.FormulaIngredientRepository;
 import catalog.ingredient.repo.IngredientComponentRepository;
-import catalog.ingredient.repo.IngredientEntryLinkRepository;
+import catalog.ingredient.repo.IngredientSourceLinkRepository;
 import catalog.ingredient.repo.IngredientRepository;
 import catalog.ingredient.repo.IngredientRequirementRepository;
 import catalog.ingredient.repo.IngredientTestLogRepository;
 import catalog.ingredient.repo.SpecialchemViewRepository;
 import catalog.ingredient.service.dto.IngredientDetailDto;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ public class IngredientService {
     private final IngredientRequirementRepository requirementRepository;
     private final IngredientTestLogRepository testLogRepository;
     private final IngredientComponentRepository componentRepository;
-    private final IngredientEntryLinkRepository linkRepository;
+    private final IngredientSourceLinkRepository sourceLinkRepository;
     private final FormulaIngredientRepository formulaIngredientRepository;
     private final SpecialchemViewRepository specialchemViewRepository;
 
@@ -35,7 +36,7 @@ public class IngredientService {
             IngredientRequirementRepository requirementRepository,
             IngredientTestLogRepository testLogRepository,
             IngredientComponentRepository componentRepository,
-            IngredientEntryLinkRepository linkRepository,
+            IngredientSourceLinkRepository sourceLinkRepository,
             FormulaIngredientRepository formulaIngredientRepository,
             SpecialchemViewRepository specialchemViewRepository
     ) {
@@ -43,7 +44,7 @@ public class IngredientService {
         this.requirementRepository = requirementRepository;
         this.testLogRepository = testLogRepository;
         this.componentRepository = componentRepository;
-        this.linkRepository = linkRepository;
+        this.sourceLinkRepository = sourceLinkRepository;
         this.formulaIngredientRepository = formulaIngredientRepository;
         this.specialchemViewRepository = specialchemViewRepository;
     }
@@ -87,13 +88,17 @@ public class IngredientService {
         int pageSize = Math.max(1, limit);
         int pageNumber = Math.max(0, offset / pageSize);
         return ingredientRepository
-                .findByKindOrderByPrimaryNameAsc(kind, PageRequest.of(pageNumber, pageSize))
+                .findByKindAndDeletedFalseOrderByPrimaryNameAsc(kind, PageRequest.of(pageNumber, pageSize))
                 .getContent();
     }
 
     public int countByKind(IngredientKind kind) {
-        long count = ingredientRepository.countByKind(kind);
+        long count = ingredientRepository.countByKindAndDeletedFalse(kind);
         return saturatingCount(count);
+    }
+
+    public int countVisibleIngredients() {
+        return saturatingCount(ingredientRepository.countByDeletedFalse());
     }
 
     public List<String> listFunctions(String prefix, int offset, int limit) {
@@ -126,7 +131,7 @@ public class IngredientService {
                 requirementRepository.findByIngredient_IngredientIdOrderByRequirementId(ingredientId),
                 testLogRepository.findByIngredient_IngredientIdOrderByTestLogId(ingredientId),
                 componentRepository.findByParentIngredient_IngredientIdOrderByIngredientComponentId(ingredientId),
-                linkRepository.findByIngredient_IngredientIdOrderByEntry_EntryId(ingredientId),
+                sourceLinkRepository.findByIngredient_IngredientIdOrderByIngredientSourceLinkId(ingredientId),
                 formulaIngredientRepository.findUsageByIngredientId(ingredientId),
                 specialchemViewRepository.findTechnicalProfileByIngredientId(ingredientId),
                 specialchemViewRepository.findProductsByIngredientId(ingredientId),
@@ -134,6 +139,46 @@ public class IngredientService {
                 specialchemViewRepository.findAlternativesByIngredientId(ingredientId),
                 specialchemViewRepository.findPotentialUseByIngredientId(ingredientId)
         );
+    }
+
+    @Transactional
+    public Ingredient updateIngredient(long ingredientId, Ingredient edited) {
+        Ingredient current = ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+
+        current.setKind(edited.getKind());
+        current.setPrimaryName(edited.getPrimaryName());
+        current.setInciName(edited.getInciName());
+        current.setCasNo(edited.getCasNo());
+        current.setEcNo(edited.getEcNo());
+        current.setCiNo(edited.getCiNo());
+        current.setSupplierName(edited.getSupplierName());
+        current.setSupplierCode(edited.getSupplierCode());
+        current.setSdsUrl(edited.getSdsUrl());
+        current.setDescriptionRu(edited.getDescriptionRu());
+        current.setDescriptionEn(edited.getDescriptionEn());
+        current.setNote(edited.getNote());
+        current.setSpecialchemUrl(edited.getSpecialchemUrl());
+        current.setSpecialchemOriginRu(edited.getSpecialchemOriginRu());
+        current.setSpecialchemOriginEn(edited.getSpecialchemOriginEn());
+        current.setSpecialchemSafetyProfileRu(edited.getSpecialchemSafetyProfileRu());
+        current.setSpecialchemSafetyProfileEn(edited.getSpecialchemSafetyProfileEn());
+        current.setSpecialchemChemIupacNameRu(edited.getSpecialchemChemIupacNameRu());
+        current.setSpecialchemChemIupacNameEn(edited.getSpecialchemChemIupacNameEn());
+        current.setSpecialchemUsageTextRu(edited.getSpecialchemUsageTextRu());
+        current.setSpecialchemUsageTextEn(edited.getSpecialchemUsageTextEn());
+        current.setUpdatedAt(OffsetDateTime.now());
+
+        return ingredientRepository.save(current);
+    }
+
+    @Transactional
+    public void markDeleted(long ingredientId) {
+        Ingredient current = ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+        current.setDeleted(Boolean.TRUE);
+        current.setUpdatedAt(OffsetDateTime.now());
+        ingredientRepository.save(current);
     }
 
     private void enrichFunctions(List<Ingredient> ingredients) {
@@ -162,6 +207,7 @@ public class IngredientService {
             ingredient.setFunctionDisplay(functionByIngredientId.getOrDefault(ingredient.getIngredientId(), ""));
         }
     }
+
     private int saturatingCount(long count) {
         return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }

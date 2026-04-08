@@ -1,14 +1,13 @@
 package catalog.ingredient.repo;
 
 import catalog.ingredient.domain.IngredientComponent;
+import catalog.ingredient.domain.IngredientKind;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import catalog.ingredient.domain.IngredientKind;
 import org.springframework.data.repository.query.Param;
 
 public interface IngredientComponentRepository extends JpaRepository<IngredientComponent, Long> {
@@ -29,6 +28,7 @@ public interface IngredientComponentRepository extends JpaRepository<IngredientC
     @Query("""
         select c
         from IngredientComponent c
+        where coalesce(c.parentIngredient.deleted, false) = false
         order by c.parentIngredient.ingredientId asc, c.ingredientComponentId asc
         """)
     List<IngredientComponent> findAllWithLinks();
@@ -82,12 +82,14 @@ public interface IngredientComponentRepository extends JpaRepository<IngredientC
 
     @EntityGraph(attributePaths = {"parentIngredient", "componentIngredient"})
     @Query("""
-    select c
-    from IngredientComponent c
-    where c.parentIngredient.kind = :kind
-    order by c.parentIngredient.ingredientId asc, c.ingredientComponentId asc
-    """)
+        select c
+        from IngredientComponent c
+        where c.parentIngredient.kind = :kind
+          and coalesce(c.parentIngredient.deleted, false) = false
+        order by c.parentIngredient.ingredientId asc, c.ingredientComponentId asc
+        """)
     List<IngredientComponent> findAllWithLinksByParentKind(@Param("kind") IngredientKind kind);
+
     interface IngredientFunctionProjection {
         Long getIngredientId();
         String getFunctionText();

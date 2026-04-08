@@ -2,7 +2,6 @@ package catalog.ingredient.service;
 
 import catalog.ingredient.domain.IngredientKind;
 import catalog.ingredient.repo.FormulaRepository;
-import catalog.ingredient.repo.IngredientRepository;
 import catalog.ingredient.repo.ProductRepository;
 import catalog.ingredient.repo.RegulatoryEntryRepository;
 import catalog.ingredient.service.dto.DashboardCounters;
@@ -14,18 +13,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class DashboardService {
 
-    private final IngredientRepository ingredientRepository;
     private final RegulatoryEntryRepository regulatoryEntryRepository;
     private final ProductRepository productRepository;
     private final FormulaRepository formulaRepository;
+    private final IngredientService ingredientService;
     private final EntityManager entityManager;
 
-    public DashboardService(IngredientRepository ingredientRepository,
+    public DashboardService(IngredientService ingredientService,
                             RegulatoryEntryRepository regulatoryEntryRepository,
                             ProductRepository productRepository,
                             FormulaRepository formulaRepository,
                             EntityManager entityManager) {
-        this.ingredientRepository = ingredientRepository;
+        this.ingredientService = ingredientService;
         this.regulatoryEntryRepository = regulatoryEntryRepository;
         this.productRepository = productRepository;
         this.formulaRepository = formulaRepository;
@@ -59,8 +58,8 @@ public class DashboardService {
                 ) q
                 """);
         return new DashboardCounters(
-                ingredientRepository.count(),
-                ingredientRepository.countByKind(IngredientKind.MIXTURE),
+                ingredientService.countVisibleIngredients(),
+                ingredientService.countByKind(IngredientKind.MIXTURE),
                 regulatoryEntryRepository.count(),
                 productRepository.count(),
                 formulaRepository.count(),

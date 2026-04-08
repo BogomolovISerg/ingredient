@@ -29,3 +29,7 @@ import '@vaadin/form-layout/src/vaadin-form-layout.js';
 import '@vaadin/form-layout/src/vaadin-form-item.js';
 import '@vaadin/form-layout/src/vaadin-form-row.js';
 import '@vaadin/details/src/vaadin-details.js';
+import '@vaadin/select/src/vaadin-select.js';
+import 'Frontend/generated/jar-resources/selectConnector.js';
+import '@vaadin/text-area/src/vaadin-text-area.js';
+import '@vaadin/notification/src/vaadin-notification.js';

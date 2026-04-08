@@ -4,12 +4,11 @@ import catalog.ingredient.service.dto.SpecialchemKeyValueRow;
 import catalog.ingredient.service.dto.SpecialchemValueRow;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -25,7 +24,6 @@ public class SpecialchemViewRepository {
                 .findAndAddModules()
                 .build();
     }
-
 
     public List<SpecialchemKeyValueRow> findTechnicalProfileByIngredientId(long ingredientId) {
         List<String> payloads = jdbcClient.sql("""
