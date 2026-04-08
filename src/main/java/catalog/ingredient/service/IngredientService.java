@@ -1,13 +1,20 @@
 package catalog.ingredient.service;
 
 import catalog.ingredient.domain.Ingredient;
+import catalog.ingredient.domain.IngredientComponent;
 import catalog.ingredient.domain.IngredientKind;
+import catalog.ingredient.domain.IngredientSolubility;
+import catalog.ingredient.domain.IngredientSolvent;
+import catalog.ingredient.domain.IngredientWaxProperty;
 import catalog.ingredient.repo.FormulaIngredientRepository;
 import catalog.ingredient.repo.IngredientComponentRepository;
 import catalog.ingredient.repo.IngredientSourceLinkRepository;
 import catalog.ingredient.repo.IngredientRepository;
 import catalog.ingredient.repo.IngredientRequirementRepository;
+import catalog.ingredient.repo.IngredientSolubilityRepository;
+import catalog.ingredient.repo.IngredientSolventRepository;
 import catalog.ingredient.repo.IngredientTestLogRepository;
+import catalog.ingredient.repo.IngredientWaxPropertyRepository;
 import catalog.ingredient.repo.SpecialchemViewRepository;
 import catalog.ingredient.service.dto.IngredientDetailDto;
 import java.time.OffsetDateTime;
@@ -27,6 +34,9 @@ public class IngredientService {
     private final IngredientRequirementRepository requirementRepository;
     private final IngredientTestLogRepository testLogRepository;
     private final IngredientComponentRepository componentRepository;
+    private final IngredientSolubilityRepository solubilityRepository;
+    private final IngredientSolventRepository solventRepository;
+    private final IngredientWaxPropertyRepository waxPropertyRepository;
     private final IngredientSourceLinkRepository sourceLinkRepository;
     private final FormulaIngredientRepository formulaIngredientRepository;
     private final SpecialchemViewRepository specialchemViewRepository;
@@ -36,6 +46,9 @@ public class IngredientService {
             IngredientRequirementRepository requirementRepository,
             IngredientTestLogRepository testLogRepository,
             IngredientComponentRepository componentRepository,
+            IngredientSolubilityRepository solubilityRepository,
+            IngredientSolventRepository solventRepository,
+            IngredientWaxPropertyRepository waxPropertyRepository,
             IngredientSourceLinkRepository sourceLinkRepository,
             FormulaIngredientRepository formulaIngredientRepository,
             SpecialchemViewRepository specialchemViewRepository
@@ -44,28 +57,30 @@ public class IngredientService {
         this.requirementRepository = requirementRepository;
         this.testLogRepository = testLogRepository;
         this.componentRepository = componentRepository;
+        this.solubilityRepository = solubilityRepository;
+        this.solventRepository = solventRepository;
+        this.waxPropertyRepository = waxPropertyRepository;
         this.sourceLinkRepository = sourceLinkRepository;
         this.formulaIngredientRepository = formulaIngredientRepository;
         this.specialchemViewRepository = specialchemViewRepository;
     }
 
     public List<Ingredient> searchIngredients(String query, String function, int offset, int limit) {
-        int pageSize = Math.max(1, limit);
-        int pageNumber = Math.max(0, offset / pageSize);
         String normalizedQuery = normalize(query);
         String normalizedFunction = normalize(function);
+        PageRequest pageRequest = pageRequest(offset, limit);
 
         Page<Ingredient> page = normalizedFunction == null
                 ? ingredientRepository.searchPageByKindAndQuery(
                 normalizedQuery,
                 IngredientKind.SUBSTANCE,
-                PageRequest.of(pageNumber, pageSize)
+                pageRequest
         )
                 : ingredientRepository.searchPageByKindAndFunction(
                 normalizedQuery,
                 IngredientKind.SUBSTANCE,
                 normalizedFunction,
-                PageRequest.of(pageNumber, pageSize)
+                pageRequest
         );
 
         List<Ingredient> ingredients = page.getContent();
@@ -85,10 +100,14 @@ public class IngredientService {
     }
 
     public List<Ingredient> searchByKind(IngredientKind kind, int offset, int limit) {
-        int pageSize = Math.max(1, limit);
-        int pageNumber = Math.max(0, offset / pageSize);
         return ingredientRepository
-                .findByKindAndDeletedFalseOrderByPrimaryNameAsc(kind, PageRequest.of(pageNumber, pageSize))
+                .findByKindAndDeletedFalseOrderByPrimaryNameAsc(kind, pageRequest(offset, limit))
+                .getContent();
+    }
+
+    public List<Ingredient> searchComponentCandidates(long ownerIngredientId, String query, int offset, int limit) {
+        return ingredientRepository
+                .searchPageExcludingIngredientId(normalize(query), ownerIngredientId, pageRequest(offset, limit))
                 .getContent();
     }
 
@@ -97,18 +116,21 @@ public class IngredientService {
         return saturatingCount(count);
     }
 
+    public int countComponentCandidates(long ownerIngredientId, String query) {
+        return saturatingCount(ingredientRepository.countByQueryExcludingIngredientId(normalize(query), ownerIngredientId));
+    }
+
     public int countVisibleIngredients() {
         return saturatingCount(ingredientRepository.countByDeletedFalse());
     }
 
     public List<String> listFunctions(String prefix, int offset, int limit) {
-        int pageSize = Math.max(1, limit);
-        int pageNumber = Math.max(0, offset / pageSize);
         String normalizedPrefix = normalize(prefix);
+        PageRequest pageRequest = pageRequest(offset, limit);
 
         return normalizedPrefix == null
-                ? componentRepository.findDistinctFunctions(PageRequest.of(pageNumber, pageSize))
-                : componentRepository.findDistinctFunctionsByPrefix(normalizedPrefix, PageRequest.of(pageNumber, pageSize));
+                ? componentRepository.findDistinctFunctions(pageRequest)
+                : componentRepository.findDistinctFunctionsByPrefix(normalizedPrefix, pageRequest);
     }
 
     public int countFunctions(String prefix) {
@@ -131,6 +153,9 @@ public class IngredientService {
                 requirementRepository.findByIngredient_IngredientIdOrderByRequirementId(ingredientId),
                 testLogRepository.findByIngredient_IngredientIdOrderByTestLogId(ingredientId),
                 componentRepository.findByParentIngredient_IngredientIdOrderByIngredientComponentId(ingredientId),
+                solubilityRepository.findByIngredient_IngredientIdOrderByMediumTypeAscSolubilityIdAsc(ingredientId),
+                solventRepository.findByIngredient_IngredientIdOrderBySolventNameAscIngredientSolventIdAsc(ingredientId),
+                waxPropertyRepository.findByIngredient_IngredientIdOrderByPropertyTypeAscWaxPropertyIdAsc(ingredientId),
                 sourceLinkRepository.findByIngredient_IngredientIdOrderByIngredientSourceLinkId(ingredientId),
                 formulaIngredientRepository.findUsageByIngredientId(ingredientId),
                 specialchemViewRepository.findTechnicalProfileByIngredientId(ingredientId),
@@ -143,30 +168,9 @@ public class IngredientService {
 
     @Transactional
     public Ingredient updateIngredient(long ingredientId, Ingredient edited) {
-        Ingredient current = ingredientRepository.findById(ingredientId)
-                .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+        Ingredient current = requireIngredient(ingredientId);
 
-        current.setKind(edited.getKind());
-        current.setPrimaryName(edited.getPrimaryName());
-        current.setInciName(edited.getInciName());
-        current.setCasNo(edited.getCasNo());
-        current.setEcNo(edited.getEcNo());
-        current.setCiNo(edited.getCiNo());
-        current.setSupplierName(edited.getSupplierName());
-        current.setSupplierCode(edited.getSupplierCode());
-        current.setSdsUrl(edited.getSdsUrl());
-        current.setDescriptionRu(edited.getDescriptionRu());
-        current.setDescriptionEn(edited.getDescriptionEn());
-        current.setNote(edited.getNote());
-        current.setSpecialchemUrl(edited.getSpecialchemUrl());
-        current.setSpecialchemOriginRu(edited.getSpecialchemOriginRu());
-        current.setSpecialchemOriginEn(edited.getSpecialchemOriginEn());
-        current.setSpecialchemSafetyProfileRu(edited.getSpecialchemSafetyProfileRu());
-        current.setSpecialchemSafetyProfileEn(edited.getSpecialchemSafetyProfileEn());
-        current.setSpecialchemChemIupacNameRu(edited.getSpecialchemChemIupacNameRu());
-        current.setSpecialchemChemIupacNameEn(edited.getSpecialchemChemIupacNameEn());
-        current.setSpecialchemUsageTextRu(edited.getSpecialchemUsageTextRu());
-        current.setSpecialchemUsageTextEn(edited.getSpecialchemUsageTextEn());
+        current.applyEditableChangesFrom(edited);
         current.setUpdatedAt(OffsetDateTime.now());
 
         return ingredientRepository.save(current);
@@ -174,11 +178,79 @@ public class IngredientService {
 
     @Transactional
     public void markDeleted(long ingredientId) {
-        Ingredient current = ingredientRepository.findById(ingredientId)
-                .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+        Ingredient current = requireIngredient(ingredientId);
         current.setDeleted(Boolean.TRUE);
         current.setUpdatedAt(OffsetDateTime.now());
         ingredientRepository.save(current);
+    }
+
+    @Transactional
+    public IngredientComponent saveComponent(long ingredientId, IngredientComponent edited) {
+        Ingredient mixture = requireMixture(ingredientId);
+        IngredientComponent current = edited.getIngredientComponentId() == null
+                ? new IngredientComponent()
+                : requireComponent(ingredientId, edited.getIngredientComponentId());
+
+        current.setParentIngredient(mixture);
+        current.applyEditableChangesFrom(edited);
+        current.setComponentIngredient(resolveComponentIngredient(ingredientId, edited.getComponentIngredient()));
+        fillComponentFieldsFromLinkedIngredient(current);
+        validateComponent(current);
+        return componentRepository.save(current);
+    }
+
+    @Transactional
+    public void deleteComponent(long ingredientId, long ingredientComponentId) {
+        requireMixture(ingredientId);
+        componentRepository.delete(requireComponent(ingredientId, ingredientComponentId));
+    }
+
+    @Transactional
+    public IngredientSolubility saveSolubility(long ingredientId, IngredientSolubility edited) {
+        IngredientSolubility current = edited.getSolubilityId() == null
+                ? new IngredientSolubility()
+                : requireSolubility(ingredientId, edited.getSolubilityId());
+
+        current.setIngredient(requireIngredient(ingredientId));
+        current.applyEditableChangesFrom(edited);
+        return solubilityRepository.save(current);
+    }
+
+    @Transactional
+    public void deleteSolubility(long ingredientId, long solubilityId) {
+        solubilityRepository.delete(requireSolubility(ingredientId, solubilityId));
+    }
+
+    @Transactional
+    public IngredientSolvent saveSolvent(long ingredientId, IngredientSolvent edited) {
+        IngredientSolvent current = edited.getIngredientSolventId() == null
+                ? new IngredientSolvent()
+                : requireSolvent(ingredientId, edited.getIngredientSolventId());
+
+        current.setIngredient(requireIngredient(ingredientId));
+        current.applyEditableChangesFrom(edited);
+        return solventRepository.save(current);
+    }
+
+    @Transactional
+    public void deleteSolvent(long ingredientId, long ingredientSolventId) {
+        solventRepository.delete(requireSolvent(ingredientId, ingredientSolventId));
+    }
+
+    @Transactional
+    public IngredientWaxProperty saveWaxProperty(long ingredientId, IngredientWaxProperty edited) {
+        IngredientWaxProperty current = edited.getWaxPropertyId() == null
+                ? new IngredientWaxProperty()
+                : requireWaxProperty(ingredientId, edited.getWaxPropertyId());
+
+        current.setIngredient(requireIngredient(ingredientId));
+        current.applyEditableChangesFrom(edited);
+        return waxPropertyRepository.save(current);
+    }
+
+    @Transactional
+    public void deleteWaxProperty(long ingredientId, long waxPropertyId) {
+        waxPropertyRepository.delete(requireWaxProperty(ingredientId, waxPropertyId));
     }
 
     private void enrichFunctions(List<Ingredient> ingredients) {
@@ -212,11 +284,106 @@ public class IngredientService {
         return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
+    private PageRequest pageRequest(int offset, int limit) {
+        int pageSize = Math.max(1, limit);
+        int pageNumber = Math.max(0, offset / pageSize);
+        return PageRequest.of(pageNumber, pageSize);
+    }
+
+    private Ingredient requireIngredient(long ingredientId) {
+        return ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+    }
+
+    private Ingredient requireMixture(long ingredientId) {
+        Ingredient ingredient = requireIngredient(ingredientId);
+        if (!ingredient.isMixture()) {
+            throw new IllegalArgumentException("Состав можно редактировать только у смесей: " + ingredientId);
+        }
+        return ingredient;
+    }
+
+    private IngredientComponent requireComponent(long ingredientId, long ingredientComponentId) {
+        IngredientComponent component = componentRepository.findById(ingredientComponentId)
+                .orElseThrow(() -> new IllegalArgumentException("Компонент состава не найден: " + ingredientComponentId));
+        validateOwnership(ingredientId, component.getParentIngredient(), "Компонент состава");
+        return component;
+    }
+
+    private IngredientSolubility requireSolubility(long ingredientId, long solubilityId) {
+        IngredientSolubility solubility = solubilityRepository.findById(solubilityId)
+                .orElseThrow(() -> new IllegalArgumentException("Растворимость не найдена: " + solubilityId));
+        validateOwnership(ingredientId, solubility.getIngredient(), "Растворимость");
+        return solubility;
+    }
+
+    private IngredientSolvent requireSolvent(long ingredientId, long ingredientSolventId) {
+        IngredientSolvent solvent = solventRepository.findById(ingredientSolventId)
+                .orElseThrow(() -> new IllegalArgumentException("Растворитель не найден: " + ingredientSolventId));
+        validateOwnership(ingredientId, solvent.getIngredient(), "Растворитель");
+        return solvent;
+    }
+
+    private IngredientWaxProperty requireWaxProperty(long ingredientId, long waxPropertyId) {
+        IngredientWaxProperty waxProperty = waxPropertyRepository.findById(waxPropertyId)
+                .orElseThrow(() -> new IllegalArgumentException("Свойство воска не найдено: " + waxPropertyId));
+        validateOwnership(ingredientId, waxProperty.getIngredient(), "Свойство воска");
+        return waxProperty;
+    }
+
+    private Ingredient resolveComponentIngredient(long ownerIngredientId, Ingredient selected) {
+        Long componentIngredientId = selected == null ? null : selected.getIngredientId();
+        if (componentIngredientId == null) {
+            return null;
+        }
+        if (componentIngredientId == ownerIngredientId) {
+            throw new IllegalArgumentException("Смесь не может содержать саму себя");
+        }
+        return requireIngredient(componentIngredientId);
+    }
+
+    private void fillComponentFieldsFromLinkedIngredient(IngredientComponent component) {
+        Ingredient linkedIngredient = component.getComponentIngredient();
+        if (linkedIngredient == null) {
+            return;
+        }
+
+        if (!hasText(component.getComponentNameRaw())) {
+            component.setComponentNameRaw(linkedIngredient.getPrimaryName());
+        }
+        if (!hasText(component.getInciRaw())) {
+            component.setInciRaw(linkedIngredient.getInciName());
+        }
+        if (!hasText(component.getCasRaw())) {
+            component.setCasRaw(linkedIngredient.getCasNo());
+        }
+        if (!hasText(component.getEcRaw())) {
+            component.setEcRaw(linkedIngredient.getEcNo());
+        }
+    }
+
+    private void validateComponent(IngredientComponent component) {
+        if (component.getComponentIngredient() == null && !hasText(component.getComponentNameRaw())) {
+            throw new IllegalArgumentException("Укажите связанный ингредиент или название компонента");
+        }
+    }
+
+    private void validateOwnership(long ingredientId, Ingredient owner, String entityName) {
+        Long ownerId = owner == null ? null : owner.getIngredientId();
+        if (ownerId == null || ownerId != ingredientId) {
+            throw new IllegalArgumentException(entityName + " не принадлежит ингредиенту: " + ingredientId);
+        }
+    }
+
     private String normalize(String value) {
         if (value == null) {
             return null;
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -262,6 +263,40 @@ public class Ingredient {
 
     public boolean isMixture() {
         return IngredientKind.MIXTURE.equals(kind);
+    }
+
+    public Ingredient createEditableCopy() {
+        Ingredient copy = new Ingredient();
+        copy.setIngredientId(ingredientId);
+        copy.setDeleted(deleted);
+        copy.applyEditableChangesFrom(this);
+        return copy;
+    }
+
+    public void applyEditableChangesFrom(Ingredient source) {
+        Objects.requireNonNull(source, "source");
+
+        setKind(source.getKind());
+        setPrimaryName(source.getPrimaryName());
+        setInciName(source.getInciName());
+        setCasNo(source.getCasNo());
+        setEcNo(source.getEcNo());
+        setCiNo(source.getCiNo());
+        setSupplierName(source.getSupplierName());
+        setSupplierCode(source.getSupplierCode());
+        setSdsUrl(source.getSdsUrl());
+        setDescriptionRu(source.getDescriptionRu());
+        setDescriptionEn(source.getDescriptionEn());
+        setNote(source.getNote());
+        setSpecialchemUrl(source.getSpecialchemUrl());
+        setSpecialchemOriginRu(source.getSpecialchemOriginRu());
+        setSpecialchemOriginEn(source.getSpecialchemOriginEn());
+        setSpecialchemSafetyProfileRu(source.getSpecialchemSafetyProfileRu());
+        setSpecialchemSafetyProfileEn(source.getSpecialchemSafetyProfileEn());
+        setSpecialchemChemIupacNameRu(source.getSpecialchemChemIupacNameRu());
+        setSpecialchemChemIupacNameEn(source.getSpecialchemChemIupacNameEn());
+        setSpecialchemUsageTextRu(source.getSpecialchemUsageTextRu());
+        setSpecialchemUsageTextEn(source.getSpecialchemUsageTextEn());
     }
 
     public String getDisplayIdentity() {

@@ -20,6 +20,41 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
         left join i.names n
         left join i.identifiers ident
         where coalesce(i.deleted, false) = false
+          and (:excludedIngredientId is null or i.ingredientId <> :excludedIngredientId)
+          and (:query is null or :query = ''
+           or lower(i.primaryName) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.inciName, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.casNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ecNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ciNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
+        order by i.primaryName asc
+        """,
+            countQuery = """
+        select count(distinct i.ingredientId) from Ingredient i
+        left join i.names n
+        left join i.identifiers ident
+        where coalesce(i.deleted, false) = false
+          and (:excludedIngredientId is null or i.ingredientId <> :excludedIngredientId)
+          and (:query is null or :query = ''
+           or lower(i.primaryName) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.inciName, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.casNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ecNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ciNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
+        """)
+    Page<Ingredient> searchPageExcludingIngredientId(@Param("query") String query,
+                                                     @Param("excludedIngredientId") Long excludedIngredientId,
+                                                     Pageable pageable);
+
+    @Query(value = """
+        select distinct i from Ingredient i
+        left join i.names n
+        left join i.identifiers ident
+        where coalesce(i.deleted, false) = false
           and i.kind = :kind
           and (:query is null or :query = ''
            or lower(i.primaryName) like lower(concat('%', :query, '%'))
@@ -137,6 +172,24 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     long countByKindAndFunction(@Param("query") String query,
                                 @Param("kind") IngredientKind kind,
                                 @Param("function") String function);
+
+    @Query("""
+        select count(distinct i.ingredientId) from Ingredient i
+        left join i.names n
+        left join i.identifiers ident
+        where coalesce(i.deleted, false) = false
+          and (:excludedIngredientId is null or i.ingredientId <> :excludedIngredientId)
+          and (:query is null or :query = ''
+           or lower(i.primaryName) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.inciName, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.casNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ecNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(i.ciNo, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
+           or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
+        """)
+    long countByQueryExcludingIngredientId(@Param("query") String query,
+                                           @Param("excludedIngredientId") Long excludedIngredientId);
 
     Page<Ingredient> findByKindAndDeletedFalseOrderByPrimaryNameAsc(IngredientKind kind, Pageable pageable);
 
