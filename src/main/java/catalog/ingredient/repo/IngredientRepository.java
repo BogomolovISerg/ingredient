@@ -100,9 +100,9 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
            or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
           and exists (
-              select 1 from IngredientComponent c
-              where c.componentIngredient = i
-                and lower(c.functionRaw) = lower(:function)
+              select 1 from IngredientFormulationFunction f
+              where f.ingredient = i
+                and lower(f.functionName) = lower(:function)
           )
         order by i.primaryName asc
         """,
@@ -121,9 +121,9 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
            or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
           and exists (
-              select 1 from IngredientComponent c
-              where c.componentIngredient = i
-                and lower(c.functionRaw) = lower(:function)
+              select 1 from IngredientFormulationFunction f
+              where f.ingredient = i
+                and lower(f.functionName) = lower(:function)
           )
         """)
     Page<Ingredient> searchPageByKindAndFunction(@Param("query") String query,
@@ -164,9 +164,9 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
            or lower(coalesce(n.id.name, '')) like lower(concat('%', :query, '%'))
            or lower(coalesce(ident.idValue, '')) like lower(concat('%', :query, '%')))
           and exists (
-              select 1 from IngredientComponent c
-              where c.componentIngredient = i
-                and lower(c.functionRaw) = lower(:function)
+              select 1 from IngredientFormulationFunction f
+              where f.ingredient = i
+                and lower(f.functionName) = lower(:function)
           )
         """)
     long countByKindAndFunction(@Param("query") String query,

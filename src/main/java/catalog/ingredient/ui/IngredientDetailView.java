@@ -9,6 +9,7 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
@@ -29,6 +30,7 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteParameters;
+import com.vaadin.flow.router.RouterLink;
 import catalog.ingredient.domain.FormulaIngredient;
 import catalog.ingredient.domain.Ingredient;
 import catalog.ingredient.domain.IngredientComponent;
@@ -43,9 +45,15 @@ import catalog.ingredient.domain.IngredientTestLog;
 import catalog.ingredient.domain.IngredientWaxProperty;
 import catalog.ingredient.service.IngredientService;
 import catalog.ingredient.service.dto.IngredientDetailDto;
+import catalog.ingredient.service.dto.RelatedFormulationDto;
+import catalog.ingredient.service.dto.RelatedFormulationIngredientDto;
+import catalog.ingredient.service.dto.RelatedFormulationIngredientMatchDto;
+import catalog.ingredient.service.dto.RelatedFormulationPropertyDto;
+import catalog.ingredient.service.dto.RelatedFormulationTagDto;
 import catalog.ingredient.service.dto.SpecialchemKeyValueRow;
 import catalog.ingredient.service.dto.SpecialchemValueRow;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +66,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     private static final int FULL_WIDTH_COLSPAN = 2;
     private static final String SECOND_COLUMN_BREAKPOINT = "900px";
     private static final String DEG_C = "degC";
+    private static final String SDS_LABEL = "SDS / паспорт безопасности";
     private static final List<String> SOLUBILITY_MEDIA = List.of(
             "water",
             "oil",
@@ -84,6 +93,16 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     private boolean editMode;
     private boolean showWaxProperties;
 
+    private enum RowActionKind {
+        NONE,
+        SOLUBILITY,
+        SOLVENT,
+        WAX_PROPERTY
+    }
+
+    private record KeyValueRow(String parameter, String value, RowActionKind actionKind, Object source) {
+    }
+
     public IngredientDetailView(IngredientService ingredientService) {
         this.ingredientService = ingredientService;
         setSizeFull();
@@ -109,7 +128,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         add(
                 sectionNames(detail),
                 sectionIdentifiers(detail),
-                sectionRequirements(detail),
+                sectionProperties(detail),
                 sectionTests(detail)
         );
 
@@ -118,11 +137,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         }
 
         add(
-                sectionSolubility(detail),
-                sectionSolvents(detail),
-                sectionWaxProperties(detail),
-                sectionSourceLinks(detail),
-                sectionFormulaUsage(detail)
+                sectionSourceLinks(detail)
         );
         addSpecialchemSections(detail);
     }
@@ -151,106 +166,106 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         Binder<Ingredient> binder = new Binder<>(Ingredient.class);
         binder.setBean(edited);
 
-        FormLayout form = createCardLayout();
-        addReadOnlyTextField(form, "ID", String.valueOf(source.getIngredientId()));
-        addKindField(form, binder);
-        addRequiredTextField(
-                form,
-                binder,
-                "Название",
-                "Название обязательно",
-                Ingredient::getPrimaryName,
-                Ingredient::setPrimaryName
-        );
-        addTextField(form, binder, "INCI", false, Ingredient::getInciName, Ingredient::setInciName);
-        addTextField(form, binder, "CAS", false, Ingredient::getCasNo, Ingredient::setCasNo);
-        addTextField(form, binder, "EC", false, Ingredient::getEcNo, Ingredient::setEcNo);
-        addTextField(form, binder, "CI", false, Ingredient::getCiNo, Ingredient::setCiNo);
-        addTextField(form, binder, "Поставщик", false, Ingredient::getSupplierName, Ingredient::setSupplierName);
-        addTextField(form, binder, "Код поставщика", false, Ingredient::getSupplierCode, Ingredient::setSupplierCode);
-        addTextField(form, binder, "SDS URL", false, Ingredient::getSdsUrl, Ingredient::setSdsUrl);
-        addTextArea(form, binder, "Описание RU", 6, true, Ingredient::getDescriptionRu, Ingredient::setDescriptionRu);
-        addTextArea(form, binder, "Описание EN", 6, true, Ingredient::getDescriptionEn, Ingredient::setDescriptionEn);
-        addTextArea(form, binder, "Примечание", 4, true, Ingredient::getNote, Ingredient::setNote);
-        addTextField(
-                form,
-                binder,
-                "Источник SpecialChem",
-                true,
-                Ingredient::getSpecialchemUrl,
-                Ingredient::setSpecialchemUrl
-        );
-        addTextArea(
-                form,
-                binder,
-                "Происхождение RU",
-                5,
-                true,
-                Ingredient::getSpecialchemOriginRu,
-                Ingredient::setSpecialchemOriginRu
-        );
-        addTextArea(
-                form,
-                binder,
-                "Происхождение EN",
-                5,
-                true,
-                Ingredient::getSpecialchemOriginEn,
-                Ingredient::setSpecialchemOriginEn
-        );
-        addTextArea(
-                form,
-                binder,
-                "Профиль безопасности RU",
-                5,
-                true,
-                Ingredient::getSpecialchemSafetyProfileRu,
-                Ingredient::setSpecialchemSafetyProfileRu
-        );
-        addTextArea(
-                form,
-                binder,
-                "Профиль безопасности EN",
-                5,
-                true,
-                Ingredient::getSpecialchemSafetyProfileEn,
-                Ingredient::setSpecialchemSafetyProfileEn
-        );
-        addTextArea(
-                form,
-                binder,
-                "IUPAC-наименование RU",
-                3,
-                true,
-                Ingredient::getSpecialchemChemIupacNameRu,
-                Ingredient::setSpecialchemChemIupacNameRu
-        );
-        addTextArea(
-                form,
-                binder,
-                "IUPAC-наименование EN",
-                3,
-                true,
-                Ingredient::getSpecialchemChemIupacNameEn,
-                Ingredient::setSpecialchemChemIupacNameEn
-        );
-        addTextArea(
-                form,
-                binder,
-                "Назначение и применение RU",
-                6,
-                true,
-                Ingredient::getSpecialchemUsageTextRu,
-                Ingredient::setSpecialchemUsageTextRu
-        );
-        addTextArea(
-                form,
-                binder,
-                "Назначение и применение EN",
-                6,
-                true,
-                Ingredient::getSpecialchemUsageTextEn,
-                Ingredient::setSpecialchemUsageTextEn
+        VerticalLayout form = createIngredientCardLayout();
+        form.add(
+                pairRow(
+                        readOnlyTextField("ID", String.valueOf(source.getIngredientId())),
+                        kindField(binder)
+                ),
+                pairRow(
+                        requiredTextField(
+                                binder,
+                                "Название",
+                                "Название обязательно",
+                                Ingredient::getPrimaryName,
+                                Ingredient::setPrimaryName
+                        ),
+                        boundTextField(binder, "INCI", Ingredient::getInciName, Ingredient::setInciName)
+                ),
+                pairRow(
+                        boundTextField(binder, "CAS", Ingredient::getCasNo, Ingredient::setCasNo),
+                        boundTextField(binder, "EC", Ingredient::getEcNo, Ingredient::setEcNo)
+                ),
+                pairRow(
+                        boundTextField(binder, "CI", Ingredient::getCiNo, Ingredient::setCiNo),
+                        readOnlyTextField("Функция", source.getFunctionDisplay())
+                ),
+                pairRow(
+                        boundTextField(binder, "Поставщик", Ingredient::getSupplierName, Ingredient::setSupplierName),
+                        boundTextField(binder, "Код поставщика", Ingredient::getSupplierCode, Ingredient::setSupplierCode)
+                ),
+                pairRow(
+                        boundTextField(binder, SDS_LABEL, Ingredient::getSdsUrl, Ingredient::setSdsUrl),
+                        boundTextField(binder, "Источник SpecialChem", Ingredient::getSpecialchemUrl, Ingredient::setSpecialchemUrl)
+                ),
+                pairRow(
+                        boundTextArea(binder, "Описание EN", 6, Ingredient::getDescriptionEn, Ingredient::setDescriptionEn),
+                        boundTextArea(binder, "Примечание", 4, Ingredient::getNote, Ingredient::setNote)
+                ),
+                pairRow(
+                        boundTextArea(
+                                binder,
+                                "Происхождение RU",
+                                5,
+                                Ingredient::getSpecialchemOriginRu,
+                                Ingredient::setSpecialchemOriginRu
+                        ),
+                        boundTextArea(
+                                binder,
+                                "Происхождение EN",
+                                5,
+                                Ingredient::getSpecialchemOriginEn,
+                                Ingredient::setSpecialchemOriginEn
+                        )
+                ),
+                pairRow(
+                        boundTextArea(
+                                binder,
+                                "Профиль безопасности RU",
+                                5,
+                                Ingredient::getSpecialchemSafetyProfileRu,
+                                Ingredient::setSpecialchemSafetyProfileRu
+                        ),
+                        boundTextArea(
+                                binder,
+                                "Профиль безопасности EN",
+                                5,
+                                Ingredient::getSpecialchemSafetyProfileEn,
+                                Ingredient::setSpecialchemSafetyProfileEn
+                        )
+                ),
+                pairRow(
+                        boundTextArea(
+                                binder,
+                                "IUPAC-наименование RU",
+                                3,
+                                Ingredient::getSpecialchemChemIupacNameRu,
+                                Ingredient::setSpecialchemChemIupacNameRu
+                        ),
+                        boundTextArea(
+                                binder,
+                                "IUPAC-наименование EN",
+                                3,
+                                Ingredient::getSpecialchemChemIupacNameEn,
+                                Ingredient::setSpecialchemChemIupacNameEn
+                        )
+                ),
+                pairRow(
+                        boundTextArea(
+                                binder,
+                                "Назначение и применение RU",
+                                6,
+                                Ingredient::getSpecialchemUsageTextRu,
+                                Ingredient::setSpecialchemUsageTextRu
+                        ),
+                        boundTextArea(
+                                binder,
+                                "Назначение и применение EN",
+                                6,
+                                Ingredient::getSpecialchemUsageTextEn,
+                                Ingredient::setSpecialchemUsageTextEn
+                        )
+                )
         );
 
         VerticalLayout wrapper = new VerticalLayout(form, buildEditActions(source, binder, edited));
@@ -260,30 +275,54 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         return wrapper;
     }
 
-    private FormLayout buildReadCard(Ingredient ingredient) {
-        FormLayout card = createCardLayout();
-        addTextItem(card, "ID", String.valueOf(ingredient.getIngredientId()));
-        addTextItem(card, "Тип", ingredient.getKind() == null ? null : ingredient.getKind().getDbValue());
-        addTextItem(card, "Название", ingredient.getPrimaryName());
-        addTextItem(card, "INCI", ingredient.getInciName());
-        addTextItem(card, "CAS", ingredient.getCasNo());
-        addTextItem(card, "EC", ingredient.getEcNo());
-        addTextItem(card, "CI", ingredient.getCiNo());
-        addTextItem(card, "Поставщик", ingredient.getSupplierName());
-        addTextItem(card, "Код поставщика", ingredient.getSupplierCode());
-        addTextItem(card, "SDS URL", ingredient.getSdsUrl());
-        addWrappedTextItem(card, "Описание RU", ingredient.getDescriptionRu());
-        addWrappedTextItem(card, "Описание EN", ingredient.getDescriptionEn());
-        addWrappedTextItem(card, "Примечание", ingredient.getNote());
-        addComponentItem(card, "Источник SpecialChem", buildExternalLink(ingredient.getSpecialchemUrl()));
-        addWrappedTextItem(card, "Происхождение RU", ingredient.getSpecialchemOriginRu());
-        addWrappedTextItem(card, "Происхождение EN", ingredient.getSpecialchemOriginEn());
-        addWrappedTextItem(card, "Профиль безопасности RU", ingredient.getSpecialchemSafetyProfileRu());
-        addWrappedTextItem(card, "Профиль безопасности EN", ingredient.getSpecialchemSafetyProfileEn());
-        addWrappedTextItem(card, "IUPAC-наименование RU", ingredient.getSpecialchemChemIupacNameRu());
-        addWrappedTextItem(card, "IUPAC-наименование EN", ingredient.getSpecialchemChemIupacNameEn());
-        addWrappedTextItem(card, "Назначение и применение RU", ingredient.getSpecialchemUsageTextRu());
-        addWrappedTextItem(card, "Назначение и применение EN", ingredient.getSpecialchemUsageTextEn());
+    private VerticalLayout buildReadCard(Ingredient ingredient) {
+        VerticalLayout card = createIngredientCardLayout();
+        card.add(
+                pairRow(
+                        readTextItem("ID", String.valueOf(ingredient.getIngredientId())),
+                        readTextItem("Тип", formatIngredientKind(ingredient.getKind()))
+                ),
+                pairRow(
+                        readTextItem("Название", ingredient.getPrimaryName()),
+                        readTextItem("INCI", ingredient.getInciName())
+                ),
+                pairRow(
+                        readTextItem("CAS", ingredient.getCasNo()),
+                        readTextItem("EC", ingredient.getEcNo())
+                ),
+                pairRow(
+                        readTextItem("CI", ingredient.getCiNo()),
+                        readTextItem("Функция", ingredient.getFunctionDisplay())
+                ),
+                pairRow(
+                        readTextItem("Поставщик", ingredient.getSupplierName()),
+                        readTextItem("Код поставщика", ingredient.getSupplierCode())
+                ),
+                pairRow(
+                        readTextItem(SDS_LABEL, ingredient.getSdsUrl()),
+                        readComponentItem("Источник SpecialChem", buildExternalLink(ingredient.getSpecialchemUrl()))
+                ),
+                pairRow(
+                        readWrappedTextItem("Описание EN", ingredient.getDescriptionEn()),
+                        readWrappedTextItem("Примечание", ingredient.getNote())
+                ),
+                pairRow(
+                        readWrappedTextItem("Происхождение RU", ingredient.getSpecialchemOriginRu()),
+                        readWrappedTextItem("Происхождение EN", ingredient.getSpecialchemOriginEn())
+                ),
+                pairRow(
+                        readWrappedTextItem("Профиль безопасности RU", ingredient.getSpecialchemSafetyProfileRu()),
+                        readWrappedTextItem("Профиль безопасности EN", ingredient.getSpecialchemSafetyProfileEn())
+                ),
+                pairRow(
+                        readWrappedTextItem("IUPAC-наименование RU", ingredient.getSpecialchemChemIupacNameRu()),
+                        readWrappedTextItem("IUPAC-наименование EN", ingredient.getSpecialchemChemIupacNameEn())
+                ),
+                pairRow(
+                        readWrappedTextItem("Назначение и применение RU", ingredient.getSpecialchemUsageTextRu()),
+                        readWrappedTextItem("Назначение и применение EN", ingredient.getSpecialchemUsageTextEn())
+                )
+        );
         return card;
     }
 
@@ -361,12 +400,80 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         return details("Идентификаторы", grid, detail.identifiers());
     }
 
-    private Details sectionRequirements(IngredientDetailDto detail) {
-        Grid<IngredientRequirement> grid = new Grid<>(IngredientRequirement.class, false);
-        grid.addColumn(IngredientRequirement::getRequirementType).setHeader("Тип").setAutoWidth(true);
-        grid.addColumn(IngredientRequirement::getRequirementText).setHeader("Текст").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(IngredientRequirement::getSourceSheet).setHeader("Лист").setAutoWidth(true);
-        return details("Требования", grid, detail.requirements());
+    private Details sectionProperties(IngredientDetailDto detail) {
+        List<KeyValueRow> rows = buildPropertyRows(detail);
+        Grid<KeyValueRow> grid = keyValueGrid(rows.stream().anyMatch(row -> row.actionKind() != RowActionKind.NONE));
+
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        HorizontalLayout actions = sectionActions();
+        actions.add(primaryActionButton("Добавить растворимость", this::openSolubilityDialog));
+        actions.add(primaryActionButton("Добавить растворитель", this::openSolventDialog));
+        actions.add(isWaxSectionEnabled(detail)
+                ? primaryActionButton("Добавить физическое свойство", this::openWaxPropertyDialog)
+                : primaryActionButton("Добавить физическое свойство воска", () -> enableWaxProperties(true)));
+
+        grid.setItems(rows);
+        grid.setAllRowsVisible(true);
+
+        content.add(actions, grid);
+        return new Details("Свойства", content);
+    }
+
+    private List<KeyValueRow> buildPropertyRows(IngredientDetailDto detail) {
+        List<KeyValueRow> rows = new ArrayList<>();
+
+        for (IngredientRequirement requirement : detail.requirements()) {
+            rows.add(new KeyValueRow(
+                    hasText(requirement.getRequirementType()) ? requirement.getRequirementType() : "Требование",
+                    nullToEmpty(requirement.getRequirementText()),
+                    RowActionKind.NONE,
+                    requirement
+            ));
+        }
+
+        for (SpecialchemKeyValueRow technicalProfileRow : detail.technicalProfile()) {
+            rows.add(new KeyValueRow(
+                    nullToEmpty(technicalProfileRow.name()),
+                    nullToEmpty(technicalProfileRow.value()),
+                    RowActionKind.NONE,
+                    technicalProfileRow
+            ));
+        }
+
+        for (IngredientSolubility solubility : detail.solubilities()) {
+            rows.add(new KeyValueRow(
+                    hasText(solubility.getMediumType())
+                            ? "Растворимость: " + formatMediumType(solubility.getMediumType())
+                            : "Растворимость",
+                    formatSolubilityValue(solubility),
+                    RowActionKind.SOLUBILITY,
+                    solubility
+            ));
+        }
+
+        for (IngredientSolvent solvent : detail.solvents()) {
+            rows.add(new KeyValueRow(
+                    "Растворитель",
+                    formatSolventValue(solvent),
+                    RowActionKind.SOLVENT,
+                    solvent
+            ));
+        }
+
+        for (IngredientWaxProperty waxProperty : detail.waxProperties()) {
+            rows.add(new KeyValueRow(
+                    formatWaxPropertyType(waxProperty.getPropertyType()),
+                    formatWaxPropertyValue(waxProperty),
+                    RowActionKind.WAX_PROPERTY,
+                    waxProperty
+            ));
+        }
+
+        return rows;
     }
 
     private Details sectionTests(IngredientDetailDto detail) {
@@ -391,7 +498,6 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addColumn(IngredientComponent::getInciRaw).setHeader("INCI").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getCasRaw).setHeader("CAS").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getEcRaw).setHeader("EC").setAutoWidth(true);
-        grid.addColumn(IngredientComponent::getFunctionRaw).setHeader("Функция").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getPurposeRaw).setHeader("Назначение").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getInputPctRaw).setHeader("Доля").setAutoWidth(true);
         grid.addColumn(row -> formatSourceRef(row.getSourceSheet(), row.getSourceRowNum())).setHeader("Лист/строка").setAutoWidth(true);
@@ -400,56 +506,6 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
                 () -> deleteComponent(row)
         )).setHeader("Действия").setAutoWidth(true);
         return crudDetails("Состав", grid, detail.components(), this::openComponentDialog);
-    }
-
-    private Details sectionSolubility(IngredientDetailDto detail) {
-        Grid<IngredientSolubility> grid = new Grid<>(IngredientSolubility.class, false);
-        grid.addColumn(row -> formatMediumType(row.getMediumType())).setHeader("Среда").setAutoWidth(true);
-        grid.addColumn(row -> formatSolubilityClass(row.getSolubilityClass())).setHeader("Тип").setAutoWidth(true);
-        grid.addColumn(row -> nullToEmpty(row.getSolubilityText())).setHeader("Описание").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(row -> nullToEmpty(row.getConcentrationText())).setHeader("Ограничение").setAutoWidth(true);
-        grid.addColumn(row -> formatNumber(row.getTemperatureC())).setHeader("T, °C").setAutoWidth(true);
-        grid.addColumn(row -> nullToEmpty(row.getSourceSystem())).setHeader("Источник").setAutoWidth(true);
-        grid.addColumn(row -> formatSourceRef(row.getSourceSheet(), row.getSourceRowNum())).setHeader("Лист/строка").setAutoWidth(true);
-        grid.addComponentColumn(row -> buildRowActions(
-                () -> openSolubilityDialog(row),
-                () -> deleteSolubility(row)
-        )).setHeader("Действия").setAutoWidth(true);
-        return crudDetails("Растворимость", grid, detail.solubilities(), this::openSolubilityDialog);
-    }
-
-    private Details sectionSolvents(IngredientDetailDto detail) {
-        Grid<IngredientSolvent> grid = new Grid<>(IngredientSolvent.class, false);
-        grid.addColumn(row -> nullToEmpty(row.getSolventName())).setHeader("Растворитель").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(row -> nullToEmpty(row.getSolventNameNorm())).setHeader("Нормализовано").setAutoWidth(true);
-        grid.addColumn(row -> nullToEmpty(row.getNote())).setHeader("Примечание").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(row -> nullToEmpty(row.getSourceSystem())).setHeader("Источник").setAutoWidth(true);
-        grid.addColumn(row -> formatSourceRef(row.getSourceSheet(), row.getSourceRowNum())).setHeader("Лист/строка").setAutoWidth(true);
-        grid.addComponentColumn(row -> buildRowActions(
-                () -> openSolventDialog(row),
-                () -> deleteSolvent(row)
-        )).setHeader("Действия").setAutoWidth(true);
-        return crudDetails("Растворители", grid, detail.solvents(), this::openSolventDialog);
-    }
-
-    private Details sectionWaxProperties(IngredientDetailDto detail) {
-        if (!isWaxSectionEnabled(detail)) {
-            return waxPlaceholderSection();
-        }
-
-        Grid<IngredientWaxProperty> grid = new Grid<>(IngredientWaxProperty.class, false);
-        grid.addColumn(row -> formatWaxPropertyType(row.getPropertyType())).setHeader("Свойство").setAutoWidth(true);
-        grid.addColumn(row -> formatNumber(row.getValueNum())).setHeader("Значение").setAutoWidth(true);
-        grid.addColumn(row -> nullToEmpty(row.getUnitName())).setHeader("Ед. изм.").setAutoWidth(true);
-        grid.addColumn(row -> nullToEmpty(row.getValueText())).setHeader("Текст").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(row -> nullToEmpty(row.getMethodText())).setHeader("Метод").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(row -> nullToEmpty(row.getSourceSystem())).setHeader("Источник").setAutoWidth(true);
-        grid.addColumn(row -> formatSourceRef(row.getSourceSheet(), row.getSourceRowNum())).setHeader("Лист/строка").setAutoWidth(true);
-        grid.addComponentColumn(row -> buildRowActions(
-                () -> openWaxPropertyDialog(row),
-                () -> deleteWaxProperty(row)
-        )).setHeader("Действия").setAutoWidth(true);
-        return crudDetails("Физические свойства воска", grid, detail.waxProperties(), this::openWaxPropertyDialog);
     }
 
     private boolean isWaxSectionEnabled(IngredientDetailDto detail) {
@@ -472,24 +528,6 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         }
         String normalized = value.toLowerCase(Locale.ROOT);
         return normalized.contains("wax") || normalized.contains("воск");
-    }
-
-    private Details waxPlaceholderSection() {
-        Span note = wrapColumnText("""
-                Секция свойств воска включается для ингредиентов, которые уже имеют свойства воска,
-                похожи по названию на wax/воск, либо были вручную помечены в интерфейсе.
-                """);
-        Button enable = new Button("Это воск", e -> {
-            showWaxProperties = true;
-            renderView();
-        });
-        enable.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-
-        VerticalLayout content = new VerticalLayout(note, enable);
-        content.setPadding(false);
-        content.setSpacing(true);
-        content.setWidthFull();
-        return new Details("Физические свойства воска", content);
     }
 
     private Details sectionSourceLinks(IngredientDetailDto detail) {
@@ -557,14 +595,11 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     }
 
     private void addSpecialchemSections(IngredientDetailDto detail) {
-        if (!detail.technicalProfile().isEmpty()) {
-            add(sectionTechnicalProfile(detail));
-        }
         if (!detail.products().isEmpty()) {
             add(sectionSingleValueList("Products", "Продукт", detail.products()));
         }
         if (!detail.formulations().isEmpty()) {
-            add(sectionSingleValueList("Formulations", "Формула", detail.formulations()));
+            add(sectionRelatedFormulations(detail));
         }
         if (!detail.alternatives().isEmpty()) {
             add(sectionSingleValueList("Alternatives", "Альтернатива", detail.alternatives()));
@@ -574,17 +609,154 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         }
     }
 
-    private Details sectionTechnicalProfile(IngredientDetailDto detail) {
-        Grid<SpecialchemKeyValueRow> grid = new Grid<>(SpecialchemKeyValueRow.class, false);
-        grid.addColumn(SpecialchemKeyValueRow::name).setHeader("Параметр").setAutoWidth(true).setFlexGrow(1);
-        grid.addColumn(SpecialchemKeyValueRow::value).setHeader("Значение").setAutoWidth(true).setFlexGrow(2);
-        return details("Technical profile", grid, detail.technicalProfile());
+    private Details sectionRelatedFormulations(IngredientDetailDto detail) {
+        Grid<RelatedFormulationDto> grid = new Grid<>(RelatedFormulationDto.class, false);
+        grid.addColumn(RelatedFormulationDto::formulationName).setHeader("Formulation").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.title())).setHeader("Title").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.supplierName())).setHeader("Supplier").setAutoWidth(true);
+        grid.addColumn(row -> formatRelationType(row.relationType())).setHeader("Связь").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.lastUpdatedRaw())).setHeader("Updated").setAutoWidth(true);
+        grid.addComponentColumn(row -> buildOptionalExternalLink(row.downloadFormulationUrl(), "Download"))
+                .setHeader("Download")
+                .setAutoWidth(true);
+        grid.addComponentColumn(row -> {
+                    Button open = new Button("Подробнее", event -> openRelatedFormulationDialog(row));
+                    open.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+                    return open;
+                })
+                .setHeader("Просмотр")
+                .setAutoWidth(true);
+        return details("Formulations", grid, detail.formulations());
     }
 
     private Details sectionSingleValueList(String title, String columnHeader, List<SpecialchemValueRow> rows) {
         Grid<SpecialchemValueRow> grid = new Grid<>(SpecialchemValueRow.class, false);
         grid.addColumn(SpecialchemValueRow::value).setHeader(columnHeader).setAutoWidth(true).setFlexGrow(1);
         return details(title, grid, rows);
+    }
+
+    private void openRelatedFormulationDialog(RelatedFormulationDto formulation) {
+        Dialog dialog = new Dialog();
+        dialog.setWidth("1180px");
+        dialog.setMaxWidth("95vw");
+        dialog.setMaxHeight("90vh");
+
+        H2 header = new H2(nullToEmpty(formulation.formulationName()));
+        header.getStyle().set("margin", "0");
+
+        Button close = new Button("Закрыть", event -> dialog.close());
+
+        VerticalLayout content = new VerticalLayout(
+                header,
+                buildRelatedFormulationOverview(formulation),
+                buildRelatedFormulationTexts(formulation)
+        );
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        if (!formulation.properties().isEmpty()) {
+            content.add(openedDetails("Properties", createRelatedFormulationPropertyGrid(formulation.properties())));
+        }
+        if (!formulation.tags().isEmpty()) {
+            content.add(openedDetails("Tags", createRelatedFormulationTagGrid(formulation.tags())));
+        }
+        if (!formulation.ingredients().isEmpty()) {
+            content.add(openedDetails("Composition", createRelatedFormulationIngredientGrid(formulation.ingredients())));
+        }
+
+        content.add(close);
+        dialog.add(content);
+        dialog.open();
+    }
+
+    private FormLayout buildRelatedFormulationOverview(RelatedFormulationDto formulation) {
+        FormLayout card = createCardLayout();
+        addTextItem(card, "Formulation", formulation.formulationName());
+        addTextItem(card, "Title", formulation.title());
+        addTextItem(card, "Supplier", formulation.supplierName());
+        addTextItem(card, "Тип связи", formatRelationType(formulation.relationType()));
+        addTextItem(card, "Updated", formulation.lastUpdatedRaw());
+        addComponentItem(card, "Formulation URL", buildOptionalExternalLink(formulation.formulationUrl(), "Open"));
+        addComponentItem(card, "Download", buildOptionalExternalLink(formulation.downloadFormulationUrl(), "Download"));
+        addWrappedTextItem(card, "Note", formulation.note());
+        return card;
+    }
+
+    private Component buildRelatedFormulationTexts(RelatedFormulationDto formulation) {
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        if (hasText(formulation.description())) {
+            content.add(openedDetails("Description", wrapColumnText(formulation.description())));
+        }
+        if (hasText(formulation.propertiesText())) {
+            content.add(openedDetails("Properties Text", wrapColumnText(formulation.propertiesText())));
+        }
+        if (hasText(formulation.procedureText())) {
+            content.add(openedDetails("Procedure", wrapColumnText(formulation.procedureText())));
+        }
+
+        return content;
+    }
+
+    private Grid<RelatedFormulationPropertyDto> createRelatedFormulationPropertyGrid(List<RelatedFormulationPropertyDto> rows) {
+        Grid<RelatedFormulationPropertyDto> grid = new Grid<>(RelatedFormulationPropertyDto.class, false);
+        grid.addColumn(RelatedFormulationPropertyDto::propertyName).setHeader("Параметр").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(RelatedFormulationPropertyDto::propertyValue).setHeader("Значение").setAutoWidth(true).setFlexGrow(2);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Grid<RelatedFormulationTagDto> createRelatedFormulationTagGrid(List<RelatedFormulationTagDto> rows) {
+        Grid<RelatedFormulationTagDto> grid = new Grid<>(RelatedFormulationTagDto.class, false);
+        grid.addColumn(row -> formatFormulationTagType(row.tagType())).setHeader("Категория").setAutoWidth(true);
+        grid.addColumn(RelatedFormulationTagDto::tagName).setHeader("Тег").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> row.tagCount() == null ? "" : String.valueOf(row.tagCount())).setHeader("Count").setAutoWidth(true);
+        grid.addComponentColumn(row -> buildOptionalExternalLink(row.tagUrl(), "Open")).setHeader("URL").setAutoWidth(true);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Grid<RelatedFormulationIngredientDto> createRelatedFormulationIngredientGrid(List<RelatedFormulationIngredientDto> rows) {
+        Grid<RelatedFormulationIngredientDto> grid = new Grid<>(RelatedFormulationIngredientDto.class, false);
+        grid.addColumn(row -> row.rowNum() == null ? "" : String.valueOf(row.rowNum())).setHeader("Row").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.phase())).setHeader("Phase").setAutoWidth(true);
+        grid.addColumn(RelatedFormulationIngredientDto::ingredientName).setHeader("Ingredient").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.ingredientType())).setHeader("Type").setAutoWidth(true);
+        grid.addColumn(this::formatRelatedFormulationQuantity).setHeader("Quantity").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.matchStatus())).setHeader("Match status").setAutoWidth(true);
+        grid.addComponentColumn(this::buildRelatedFormulationMatches).setHeader("Matched ingredients").setAutoWidth(true).setFlexGrow(1);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Component buildRelatedFormulationMatches(RelatedFormulationIngredientDto row) {
+        if (row.matches() == null || row.matches().isEmpty()) {
+            return new Span();
+        }
+
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.setWidthFull();
+
+        for (RelatedFormulationIngredientMatchDto match : row.matches()) {
+            if (match.ingredientId() != null) {
+                RouterLink link = new RouterLink(
+                        formatRelatedFormulationMatch(match),
+                        IngredientDetailView.class,
+                        new RouteParameters("id", String.valueOf(match.ingredientId()))
+                );
+                content.add(link);
+            } else {
+                content.add(wrapColumnText(formatRelatedFormulationMatch(match)));
+            }
+        }
+
+        return content;
     }
 
     private void openSolubilityDialog() {
@@ -643,10 +815,6 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         TextField chemicalNameField = textField("Химическое наименование");
         binder.bind(chemicalNameField, IngredientComponent::getChemicalNameRaw, IngredientComponent::setChemicalNameRaw);
         addField(form, chemicalNameField, false);
-
-        TextField functionField = textField("Функция");
-        binder.bind(functionField, IngredientComponent::getFunctionRaw, IngredientComponent::setFunctionRaw);
-        addField(form, functionField, false);
 
         TextField purposeField = textField("Назначение");
         binder.bind(purposeField, IngredientComponent::getPurposeRaw, IngredientComponent::setPurposeRaw);
@@ -914,6 +1082,68 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         renderView();
     }
 
+    private void enableWaxProperties(boolean openDialog) {
+        showWaxProperties = true;
+        renderView();
+        if (openDialog) {
+            openWaxPropertyDialog();
+        }
+    }
+
+    private Grid<KeyValueRow> keyValueGrid(boolean includeActions) {
+        Grid<KeyValueRow> grid = new Grid<>(KeyValueRow.class, false);
+        grid.addColumn(KeyValueRow::parameter)
+                .setHeader("Параметр")
+                .setAutoWidth(true)
+                .setFlexGrow(0)
+                .setResizable(true);
+        grid.addColumn(KeyValueRow::value)
+                .setHeader("Значение")
+                .setAutoWidth(true)
+                .setFlexGrow(1)
+                .setResizable(true);
+        if (includeActions) {
+            grid.addComponentColumn(this::buildKeyValueActions)
+                    .setHeader("Действия")
+                    .setWidth("210px")
+                    .setFlexGrow(0);
+        }
+        return grid;
+    }
+
+    private Component buildKeyValueActions(KeyValueRow row) {
+        return switch (row.actionKind()) {
+            case SOLUBILITY -> buildRowActions(
+                    () -> openSolubilityDialog((IngredientSolubility) row.source()),
+                    () -> deleteSolubility((IngredientSolubility) row.source())
+            );
+            case SOLVENT -> buildRowActions(
+                    () -> openSolventDialog((IngredientSolvent) row.source()),
+                    () -> deleteSolvent((IngredientSolvent) row.source())
+            );
+            case WAX_PROPERTY -> buildRowActions(
+                    () -> openWaxPropertyDialog((IngredientWaxProperty) row.source()),
+                    () -> deleteWaxProperty((IngredientWaxProperty) row.source())
+            );
+            case NONE -> new Span();
+        };
+    }
+
+    private HorizontalLayout sectionActions(Button... buttons) {
+        HorizontalLayout actions = new HorizontalLayout(buttons);
+        actions.setPadding(false);
+        actions.setSpacing(true);
+        actions.setWidthFull();
+        actions.setWrap(true);
+        return actions;
+    }
+
+    private Button primaryActionButton(String text, Runnable action) {
+        Button button = new Button(text, event -> action.run());
+        button.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        return button;
+    }
+
     private void openEditorDialog(String title, FormLayout form, Consumer<Dialog> onSave) {
         Dialog dialog = new Dialog();
         dialog.setWidth("920px");
@@ -937,33 +1167,56 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     }
 
     private <T> Details details(String title, Grid<T> grid, Collection<T> items) {
-        grid.setItems(items);
-        grid.setAllRowsVisible(true);
-        return new Details(title, grid);
+        prepareGrid(grid, items);
+
+        Details details = new Details(title, grid);
+        details.addOpenedChangeListener(event -> {
+            if (event.isOpened()) {
+                grid.recalculateColumnWidths();
+            }
+        });
+        return details;
     }
 
     private <T> Details crudDetails(String title, Grid<T> grid, Collection<T> items, Runnable onAdd) {
         Button add = new Button("Добавить", event -> onAdd.run());
         add.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        grid.setItems(items);
-        grid.setAllRowsVisible(true);
+        prepareGrid(grid, items);
 
         VerticalLayout content = new VerticalLayout(add, grid);
         content.setPadding(false);
         content.setSpacing(true);
         content.setWidthFull();
-        return new Details(title, content);
+
+        Details details = new Details(title, content);
+        details.addOpenedChangeListener(event -> {
+            if (event.isOpened()) {
+                grid.recalculateColumnWidths();
+            }
+        });
+        return details;
+    }
+
+    private <T> void prepareGrid(Grid<T> grid, Collection<T> items) {
+        grid.setWidthFull();
+        grid.setItems(items);
+        grid.setAllRowsVisible(true);
     }
 
     private HorizontalLayout buildRowActions(Runnable onEdit, Runnable onDelete) {
         Button edit = new Button("Изменить", event -> onEdit.run());
-        edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
 
         Button delete = new Button("Удалить", event -> onDelete.run());
-        delete.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_ERROR);
+        delete.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
 
-        return new HorizontalLayout(edit, delete);
+        HorizontalLayout actions = new HorizontalLayout(edit, delete);
+        actions.setPadding(false);
+        actions.setSpacing(true);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.getThemeList().add("spacing-xs");
+        return actions;
     }
 
     private TextField textField(String label) {
@@ -1022,9 +1275,113 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         field.setLabel("Тип");
         field.setWidthFull();
         field.setItems(IngredientKind.values());
-        field.setItemLabelGenerator(kind -> kind == null ? "" : kind.getDbValue());
+        field.setItemLabelGenerator(this::formatIngredientKind);
         binder.bind(field, Ingredient::getKind, Ingredient::setKind);
         return addField(form, field, false);
+    }
+
+    private VerticalLayout createIngredientCardLayout() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+        layout.setSpacing(true);
+        layout.setWidthFull();
+        return layout;
+    }
+
+    private HorizontalLayout pairRow(Component left, Component right) {
+        HorizontalLayout row = new HorizontalLayout(
+                pairCell(left),
+                pairCell(right)
+        );
+        row.setPadding(false);
+        row.setSpacing(true);
+        row.setWidthFull();
+        row.getStyle().set("flex-wrap", "wrap");
+        return row;
+    }
+
+    private Div pairCell(Component content) {
+        Div cell = new Div(content);
+        cell.setWidthFull();
+        cell.getStyle().set("flex", "1 1 320px");
+        cell.getStyle().set("min-width", "0");
+        return cell;
+    }
+
+    private Div readTextItem(String label, String value) {
+        return readComponentItem(label, wrapColumnText(value));
+    }
+
+    private Div readWrappedTextItem(String label, String value) {
+        return readComponentItem(label, wrapColumnText(value));
+    }
+
+    private Div readComponentItem(String label, Component component) {
+        Span caption = new Span(label);
+        caption.getStyle().set("display", "block");
+        caption.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        caption.getStyle().set("font-weight", "600");
+        caption.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        caption.getStyle().set("margin-bottom", "var(--lumo-space-xs)");
+
+        Div cell = new Div(caption, component);
+        cell.setWidthFull();
+        cell.getStyle().set("min-width", "0");
+        return cell;
+    }
+
+    private TextField readOnlyTextField(String label, String value) {
+        TextField field = textField(label);
+        field.setValue(nullToEmpty(value));
+        field.setReadOnly(true);
+        return field;
+    }
+
+    private Select<IngredientKind> kindField(Binder<Ingredient> binder) {
+        Select<IngredientKind> field = new Select<>();
+        field.setLabel("Тип");
+        field.setWidthFull();
+        field.setItems(IngredientKind.values());
+        field.setItemLabelGenerator(this::formatIngredientKind);
+        binder.bind(field, Ingredient::getKind, Ingredient::setKind);
+        return field;
+    }
+
+    private TextField requiredTextField(
+            Binder<Ingredient> binder,
+            String label,
+            String requiredMessage,
+            ValueProvider<Ingredient, String> getter,
+            Setter<Ingredient, String> setter
+    ) {
+        TextField field = textField(label);
+        binder.forField(field)
+                .asRequired(requiredMessage)
+                .bind(getter, setter);
+        return field;
+    }
+
+    private TextField boundTextField(
+            Binder<Ingredient> binder,
+            String label,
+            ValueProvider<Ingredient, String> getter,
+            Setter<Ingredient, String> setter
+    ) {
+        TextField field = textField(label);
+        binder.bind(field, getter, setter);
+        return field;
+    }
+
+    private TextArea boundTextArea(
+            Binder<Ingredient> binder,
+            String label,
+            int minRows,
+            ValueProvider<Ingredient, String> getter,
+            Setter<Ingredient, String> setter
+    ) {
+        TextArea field = textArea(label, minRows);
+        binder.bind(field, getter, setter);
+        return field;
     }
 
     private TextField addRequiredTextField(
@@ -1100,7 +1457,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     }
 
     private Anchor buildExternalLink(String url) {
-        String safeUrl = nullToEmpty(url);
+        String safeUrl = SpecialchemUrlResolver.normalize(url);
         Anchor anchor = new Anchor(safeUrl, safeUrl.isBlank() ? "" : safeUrl);
         anchor.setTarget("_blank");
         anchor.getStyle().set("display", "block");
@@ -1108,6 +1465,33 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         anchor.getStyle().set("overflow-wrap", "anywhere");
         anchor.getStyle().set("word-break", "break-word");
         return anchor;
+    }
+
+    private Component buildOptionalExternalLink(String url, String label) {
+        String safeUrl = SpecialchemUrlResolver.normalize(url);
+        if (!hasText(safeUrl)) {
+            return new Span();
+        }
+        Anchor anchor = new Anchor(safeUrl, label);
+        anchor.setTarget("_blank");
+        return anchor;
+    }
+
+    private String formatIngredientKind(IngredientKind kind) {
+        if (kind == null) {
+            return "";
+        }
+        return switch (kind) {
+            case SUBSTANCE -> "ингредиент";
+            case MIXTURE -> "смесь";
+            case MATERIAL -> "материал";
+        };
+    }
+
+    private Details openedDetails(String title, Component content) {
+        Details details = new Details(title, content);
+        details.setOpened(true);
+        return details;
     }
 
     private String formatComponentName(IngredientComponent component) {
@@ -1135,17 +1519,6 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
             label.append(" [").append(formatIngredientKind(ingredient.getKind())).append(']');
         }
         return label.toString();
-    }
-
-    private String formatIngredientKind(IngredientKind kind) {
-        if (kind == null) {
-            return "";
-        }
-        return switch (kind) {
-            case SUBSTANCE -> "вещество";
-            case MIXTURE -> "смесь";
-            case MATERIAL -> "материал";
-        };
     }
 
     private String formatMediumType(String value) {
@@ -1180,6 +1553,62 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         };
     }
 
+    private String formatRelationType(String value) {
+        return switch (nullToEmpty(value)) {
+            case "source_ingredient" -> "Source ingredient";
+            case "matched_component" -> "Matched component";
+            default -> nullToEmpty(value);
+        };
+    }
+
+    private String formatFormulationTagType(String value) {
+        return switch (nullToEmpty(value)) {
+            case "end_consumer_benefit" -> "End consumer benefit";
+            case "application" -> "Application";
+            case "application_format" -> "Application format";
+            case "application_market" -> "Application market";
+            default -> nullToEmpty(value);
+        };
+    }
+
+    private String formatSolubilityValue(IngredientSolubility solubility) {
+        List<String> parts = new ArrayList<>();
+        appendPart(parts, formatSolubilityClass(solubility.getSolubilityClass()));
+        appendPart(parts, solubility.getSolubilityText());
+        if (hasText(solubility.getConcentrationText())) {
+            parts.add("Ограничение: " + solubility.getConcentrationText());
+        }
+        if (solubility.getTemperatureC() != null) {
+            parts.add("T " + formatNumber(solubility.getTemperatureC()) + " °C");
+        }
+        return String.join("; ", parts);
+    }
+
+    private String formatSolventValue(IngredientSolvent solvent) {
+        List<String> parts = new ArrayList<>();
+        appendPart(parts, solvent.getSolventName());
+        if (hasText(solvent.getNote())) {
+            parts.add("Примечание: " + solvent.getNote());
+        }
+        return String.join("; ", parts);
+    }
+
+    private String formatWaxPropertyValue(IngredientWaxProperty waxProperty) {
+        List<String> parts = new ArrayList<>();
+        if (waxProperty.getValueNum() != null) {
+            String value = formatNumber(waxProperty.getValueNum());
+            if (hasText(waxProperty.getUnitName())) {
+                value = value + " " + waxProperty.getUnitName();
+            }
+            parts.add(value);
+        }
+        appendPart(parts, waxProperty.getValueText());
+        if (hasText(waxProperty.getMethodText())) {
+            parts.add("Метод: " + waxProperty.getMethodText());
+        }
+        return String.join("; ", parts);
+    }
+
     private String formatSourceRef(String sheet, Integer rowNum) {
         if (!hasText(sheet) && rowNum == null) {
             return "";
@@ -1195,6 +1624,40 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
 
     private String formatNumber(BigDecimal value) {
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
+    }
+
+    private String formatRelatedFormulationQuantity(RelatedFormulationIngredientDto row) {
+        if (hasText(row.quantityRaw())) {
+            return row.quantityRaw();
+        }
+
+        if (row.quantityValue() == null) {
+            return "";
+        }
+
+        String value = formatNumber(row.quantityValue());
+        return hasText(row.quantityUnit()) ? value + " " + row.quantityUnit() : value;
+    }
+
+    private String formatRelatedFormulationMatch(RelatedFormulationIngredientMatchDto match) {
+        List<String> parts = new ArrayList<>();
+        appendPart(parts, match.ingredientPrimaryName());
+
+        if (hasText(match.matchedName())
+                && !match.matchedName().equalsIgnoreCase(nullToEmpty(match.ingredientPrimaryName()))) {
+            parts.add("matched as: " + match.matchedName());
+        }
+
+        if (parts.isEmpty()) {
+            appendPart(parts, match.sourceRef());
+        }
+        return String.join(" | ", parts);
+    }
+
+    private void appendPart(List<String> parts, String value) {
+        if (hasText(value)) {
+            parts.add(value);
+        }
     }
 
     private void populateComponentFieldsFromIngredient(

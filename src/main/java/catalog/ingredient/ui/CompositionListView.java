@@ -31,7 +31,6 @@ public class CompositionListView extends VerticalLayout {
         grid.addColumn(IngredientComponent::getInciRaw).setHeader("INCI").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getCasRaw).setHeader("CAS").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getEcRaw).setHeader("EC").setAutoWidth(true);
-        grid.addColumn(IngredientComponent::getFunctionRaw).setHeader("Функция").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getInputPctRaw).setHeader("Доля").setAutoWidth(true);
         grid.addColumn(IngredientComponent::getSourceSystem).setHeader("Источник").setAutoWidth(true);
         grid.setItems(compositionRepository.findAllWithLinksByParentKind(IngredientKind.MIXTURE));

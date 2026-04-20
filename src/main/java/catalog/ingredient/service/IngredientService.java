@@ -8,6 +8,7 @@ import catalog.ingredient.domain.IngredientSolvent;
 import catalog.ingredient.domain.IngredientWaxProperty;
 import catalog.ingredient.repo.FormulaIngredientRepository;
 import catalog.ingredient.repo.IngredientComponentRepository;
+import catalog.ingredient.repo.IngredientFormulationFunctionRepository;
 import catalog.ingredient.repo.IngredientSourceLinkRepository;
 import catalog.ingredient.repo.IngredientRepository;
 import catalog.ingredient.repo.IngredientRequirementRepository;
@@ -15,6 +16,7 @@ import catalog.ingredient.repo.IngredientSolubilityRepository;
 import catalog.ingredient.repo.IngredientSolventRepository;
 import catalog.ingredient.repo.IngredientTestLogRepository;
 import catalog.ingredient.repo.IngredientWaxPropertyRepository;
+import catalog.ingredient.repo.RelatedFormulationRepository;
 import catalog.ingredient.repo.SpecialchemViewRepository;
 import catalog.ingredient.service.dto.IngredientDetailDto;
 import java.time.OffsetDateTime;
@@ -34,11 +36,13 @@ public class IngredientService {
     private final IngredientRequirementRepository requirementRepository;
     private final IngredientTestLogRepository testLogRepository;
     private final IngredientComponentRepository componentRepository;
+    private final IngredientFormulationFunctionRepository formulationFunctionRepository;
     private final IngredientSolubilityRepository solubilityRepository;
     private final IngredientSolventRepository solventRepository;
     private final IngredientWaxPropertyRepository waxPropertyRepository;
     private final IngredientSourceLinkRepository sourceLinkRepository;
     private final FormulaIngredientRepository formulaIngredientRepository;
+    private final RelatedFormulationRepository relatedFormulationRepository;
     private final SpecialchemViewRepository specialchemViewRepository;
 
     public IngredientService(
@@ -46,26 +50,38 @@ public class IngredientService {
             IngredientRequirementRepository requirementRepository,
             IngredientTestLogRepository testLogRepository,
             IngredientComponentRepository componentRepository,
+            IngredientFormulationFunctionRepository formulationFunctionRepository,
             IngredientSolubilityRepository solubilityRepository,
             IngredientSolventRepository solventRepository,
             IngredientWaxPropertyRepository waxPropertyRepository,
             IngredientSourceLinkRepository sourceLinkRepository,
             FormulaIngredientRepository formulaIngredientRepository,
+            RelatedFormulationRepository relatedFormulationRepository,
             SpecialchemViewRepository specialchemViewRepository
     ) {
         this.ingredientRepository = ingredientRepository;
         this.requirementRepository = requirementRepository;
         this.testLogRepository = testLogRepository;
         this.componentRepository = componentRepository;
+        this.formulationFunctionRepository = formulationFunctionRepository;
         this.solubilityRepository = solubilityRepository;
         this.solventRepository = solventRepository;
         this.waxPropertyRepository = waxPropertyRepository;
         this.sourceLinkRepository = sourceLinkRepository;
         this.formulaIngredientRepository = formulaIngredientRepository;
+        this.relatedFormulationRepository = relatedFormulationRepository;
         this.specialchemViewRepository = specialchemViewRepository;
     }
 
     public List<Ingredient> searchIngredients(String query, String function, int offset, int limit) {
+        return searchByKind(IngredientKind.SUBSTANCE, query, function, offset, limit);
+    }
+
+    public int countIngredientSearch(String query, String function) {
+        return countByKindSearch(IngredientKind.SUBSTANCE, query, function);
+    }
+
+    public List<Ingredient> searchByKind(IngredientKind kind, String query, String function, int offset, int limit) {
         String normalizedQuery = normalize(query);
         String normalizedFunction = normalize(function);
         PageRequest pageRequest = pageRequest(offset, limit);
@@ -73,12 +89,12 @@ public class IngredientService {
         Page<Ingredient> page = normalizedFunction == null
                 ? ingredientRepository.searchPageByKindAndQuery(
                 normalizedQuery,
-                IngredientKind.SUBSTANCE,
+                kind,
                 pageRequest
         )
                 : ingredientRepository.searchPageByKindAndFunction(
                 normalizedQuery,
-                IngredientKind.SUBSTANCE,
+                kind,
                 normalizedFunction,
                 pageRequest
         );
@@ -88,21 +104,23 @@ public class IngredientService {
         return ingredients;
     }
 
-    public int countIngredientSearch(String query, String function) {
+    public int countByKindSearch(IngredientKind kind, String query, String function) {
         String normalizedQuery = normalize(query);
         String normalizedFunction = normalize(function);
 
         long count = normalizedFunction == null
-                ? ingredientRepository.countByKindAndQuery(normalizedQuery, IngredientKind.SUBSTANCE)
-                : ingredientRepository.countByKindAndFunction(normalizedQuery, IngredientKind.SUBSTANCE, normalizedFunction);
+                ? ingredientRepository.countByKindAndQuery(normalizedQuery, kind)
+                : ingredientRepository.countByKindAndFunction(normalizedQuery, kind, normalizedFunction);
 
         return saturatingCount(count);
     }
 
     public List<Ingredient> searchByKind(IngredientKind kind, int offset, int limit) {
-        return ingredientRepository
+        List<Ingredient> ingredients = ingredientRepository
                 .findByKindAndDeletedFalseOrderByPrimaryNameAsc(kind, pageRequest(offset, limit))
                 .getContent();
+        enrichFunctions(ingredients);
+        return ingredients;
     }
 
     public List<Ingredient> searchComponentCandidates(long ownerIngredientId, String query, int offset, int limit) {
@@ -129,15 +147,15 @@ public class IngredientService {
         PageRequest pageRequest = pageRequest(offset, limit);
 
         return normalizedPrefix == null
-                ? componentRepository.findDistinctFunctions(pageRequest)
-                : componentRepository.findDistinctFunctionsByPrefix(normalizedPrefix, pageRequest);
+                ? formulationFunctionRepository.findDistinctFunctions(pageRequest)
+                : formulationFunctionRepository.findDistinctFunctionsByPrefix(normalizedPrefix, pageRequest);
     }
 
     public int countFunctions(String prefix) {
         String normalizedPrefix = normalize(prefix);
         long count = normalizedPrefix == null
-                ? componentRepository.countDistinctFunctions()
-                : componentRepository.countDistinctFunctionsByPrefix(normalizedPrefix);
+                ? formulationFunctionRepository.countDistinctFunctions()
+                : formulationFunctionRepository.countDistinctFunctionsByPrefix(normalizedPrefix);
 
         return saturatingCount(count);
     }
@@ -145,6 +163,7 @@ public class IngredientService {
     public IngredientDetailDto getDetail(long ingredientId) {
         Ingredient ingredient = ingredientRepository.findWithNamesAndIdentifiersByIngredientId(ingredientId)
                 .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + ingredientId));
+        enrichFunctions(List.of(ingredient));
 
         return new IngredientDetailDto(
                 ingredient,
@@ -160,7 +179,7 @@ public class IngredientService {
                 formulaIngredientRepository.findUsageByIngredientId(ingredientId),
                 specialchemViewRepository.findTechnicalProfileByIngredientId(ingredientId),
                 specialchemViewRepository.findProductsByIngredientId(ingredientId),
-                specialchemViewRepository.findFormulationsByIngredientId(ingredientId),
+                relatedFormulationRepository.findByIngredientId(ingredientId),
                 specialchemViewRepository.findAlternativesByIngredientId(ingredientId),
                 specialchemViewRepository.findPotentialUseByIngredientId(ingredientId)
         );
@@ -262,14 +281,14 @@ public class IngredientService {
                 .map(Ingredient::getIngredientId)
                 .toList();
 
-        Map<Long, String> functionByIngredientId = componentRepository.findFunctionRowsByIngredientIds(ids)
+        Map<Long, String> functionByIngredientId = formulationFunctionRepository.findFunctionRowsByIngredientIds(ids)
                 .stream()
                 .collect(Collectors.groupingBy(
-                        IngredientComponentRepository.IngredientFunctionProjection::getIngredientId,
+                        IngredientFormulationFunctionRepository.IngredientFunctionProjection::getIngredientId,
                         Collectors.mapping(
-                                IngredientComponentRepository.IngredientFunctionProjection::getFunctionText,
+                                IngredientFormulationFunctionRepository.IngredientFunctionProjection::getFunctionText,
                                 Collectors.collectingAndThen(
-                                        Collectors.toCollection(java.util.TreeSet::new),
+                                        Collectors.toCollection(() -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)),
                                         values -> String.join(", ", values)
                                 )
                         )

@@ -27,7 +27,7 @@ public record IngredientDetailDto(
         List<FormulaIngredient> formulaUsages,
         List<SpecialchemKeyValueRow> technicalProfile,
         List<SpecialchemValueRow> products,
-        List<SpecialchemValueRow> formulations,
+        List<RelatedFormulationDto> formulations,
         List<SpecialchemValueRow> alternatives,
         List<SpecialchemValueRow> potentialUse
 ) {
