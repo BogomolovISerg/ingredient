@@ -50,14 +50,21 @@ import catalog.ingredient.service.dto.RelatedFormulationIngredientDto;
 import catalog.ingredient.service.dto.RelatedFormulationIngredientMatchDto;
 import catalog.ingredient.service.dto.RelatedFormulationPropertyDto;
 import catalog.ingredient.service.dto.RelatedFormulationTagDto;
+import catalog.ingredient.service.dto.RelatedProductDto;
+import catalog.ingredient.service.dto.RelatedProductInciMatchDto;
+import catalog.ingredient.service.dto.RelatedProductInciRowDto;
+import catalog.ingredient.service.dto.RelatedProductPropertyDto;
+import catalog.ingredient.service.dto.RelatedProductTagDto;
 import catalog.ingredient.service.dto.SpecialchemKeyValueRow;
 import catalog.ingredient.service.dto.SpecialchemValueRow;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @PageTitle("Карточка ингредиента")
 @Route(value = "ingredients/:id", layout = MainLayout.class)
@@ -596,7 +603,7 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
 
     private void addSpecialchemSections(IngredientDetailDto detail) {
         if (!detail.products().isEmpty()) {
-            add(sectionSingleValueList("Products", "Продукт", detail.products()));
+            add(sectionRelatedProducts(detail));
         }
         if (!detail.formulations().isEmpty()) {
             add(sectionRelatedFormulations(detail));
@@ -627,6 +634,25 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
                 .setHeader("Просмотр")
                 .setAutoWidth(true);
         return details("Formulations", grid, detail.formulations());
+    }
+
+    private Details sectionRelatedProducts(IngredientDetailDto detail) {
+        Grid<RelatedProductDto> grid = new Grid<>(RelatedProductDto.class, false);
+        grid.addColumn(RelatedProductDto::productName).setHeader("Product").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.title())).setHeader("Title").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.supplierName())).setHeader("Supplier").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.gradeName())).setHeader("Grade").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.useLevel())).setHeader("Use level").setAutoWidth(true);
+        grid.addColumn(row -> formatRelationType(row.relationType())).setHeader("Связь").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.lastUpdatedRaw())).setHeader("Updated").setAutoWidth(true);
+        grid.addComponentColumn(row -> {
+                    Button open = new Button("Подробнее", event -> openRelatedProductDialog(row));
+                    open.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+                    return open;
+                })
+                .setHeader("Просмотр")
+                .setAutoWidth(true);
+        return details("Products", grid, detail.products());
     }
 
     private Details sectionSingleValueList(String title, String columnHeader, List<SpecialchemValueRow> rows) {
@@ -731,6 +757,157 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         grid.addComponentColumn(this::buildRelatedFormulationMatches).setHeader("Matched ingredients").setAutoWidth(true).setFlexGrow(1);
         prepareGrid(grid, rows);
         return grid;
+    }
+
+    private void openRelatedProductDialog(RelatedProductDto product) {
+        Dialog dialog = new Dialog();
+        dialog.setWidth("1180px");
+        dialog.setMaxWidth("95vw");
+        dialog.setMaxHeight("90vh");
+
+        H2 header = new H2(nullToEmpty(product.productName()));
+        header.getStyle().set("margin", "0");
+
+        Button close = new Button("Закрыть", event -> dialog.close());
+
+        VerticalLayout content = new VerticalLayout(
+                header,
+                buildRelatedProductOverview(product),
+                buildRelatedProductTexts(product)
+        );
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        if (!product.tags().isEmpty()) {
+            content.add(openedDetails("Tags", createRelatedProductTagGrid(product.tags())));
+        }
+        if (!product.properties().isEmpty()) {
+            content.add(openedDetails("Properties", createRelatedProductPropertyGrid(product.properties())));
+        }
+        if (!product.inciRows().isEmpty()) {
+            content.add(openedDetails("INCI composition", createRelatedProductInciGrid(product.inciRows())));
+        }
+
+        content.add(close);
+        dialog.add(content);
+        dialog.open();
+    }
+
+    private FormLayout buildRelatedProductOverview(RelatedProductDto product) {
+        FormLayout card = createCardLayout();
+        addTextItem(card, "Product", product.productName());
+        addTextItem(card, "Title", product.title());
+        addTextItem(card, "Supplier", product.supplierName());
+        addTextItem(card, "Brand", product.brandName());
+        addTextItem(card, "Grade", product.gradeName());
+        addTextItem(card, "Тип связи", formatRelationType(product.relationType()));
+        addTextItem(card, "Updated", product.lastUpdatedRaw());
+        addTextItem(card, "Use level", product.useLevel());
+        addTextItem(card, "Life cycle", product.productLifeCycleStage());
+        addComponentItem(card, "Product URL", buildOptionalExternalLink(product.productUrl(), "Open"));
+        addTextItem(card, "CAS", product.casNo());
+        addTextItem(card, "EC", product.ecNo());
+        addWrappedTextItem(card, "Note", product.note());
+        return card;
+    }
+
+    private Component buildRelatedProductTexts(RelatedProductDto product) {
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        if (hasText(product.description())) {
+            content.add(openedDetails("Description", wrapColumnText(product.description())));
+        }
+
+        if (hasProductTechnicalInfo(product)) {
+            FormLayout card = createCardLayout();
+            addWrappedTextItem(card, "Appearance", product.appearance());
+            addWrappedTextItem(card, "Physical form", product.physicalForm());
+            addWrappedTextItem(card, "Odor", product.odor());
+            addWrappedTextItem(card, "Color", product.color());
+            addWrappedTextItem(card, "Bio-based", product.bioBased());
+            addWrappedTextItem(card, "Bio-based content", product.bioBasedContent());
+            addWrappedTextItem(card, "Chemical composition", product.chemicalComposition());
+            content.add(openedDetails("Technical info", card));
+        }
+
+        return content;
+    }
+
+    private boolean hasProductTechnicalInfo(RelatedProductDto product) {
+        return hasText(product.appearance())
+                || hasText(product.physicalForm())
+                || hasText(product.odor())
+                || hasText(product.color())
+                || hasText(product.bioBased())
+                || hasText(product.bioBasedContent())
+                || hasText(product.chemicalComposition());
+    }
+
+    private Grid<RelatedProductTagDto> createRelatedProductTagGrid(List<RelatedProductTagDto> rows) {
+        Grid<RelatedProductTagDto> grid = new Grid<>(RelatedProductTagDto.class, false);
+        grid.addColumn(row -> formatProductTagType(row.tagType())).setHeader("Категория").setAutoWidth(true);
+        grid.addColumn(RelatedProductTagDto::tagName).setHeader("Тег").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> row.tagCount() == null ? "" : String.valueOf(row.tagCount())).setHeader("Count").setAutoWidth(true);
+        grid.addComponentColumn(row -> buildOptionalExternalLink(row.tagUrl(), "Open")).setHeader("URL").setAutoWidth(true);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Grid<RelatedProductPropertyDto> createRelatedProductPropertyGrid(List<RelatedProductPropertyDto> rows) {
+        Grid<RelatedProductPropertyDto> grid = new Grid<>(RelatedProductPropertyDto.class, false);
+        grid.addColumn(row -> formatProductPropertyType(row.propertyType())).setHeader("Тип").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.propertyGroup())).setHeader("Группа").setAutoWidth(true);
+        grid.addColumn(row -> nullToEmpty(row.propertyName())).setHeader("Параметр").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(this::formatRelatedProductPropertyValue).setHeader("Значение").setAutoWidth(true).setFlexGrow(2);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Grid<RelatedProductInciRowDto> createRelatedProductInciGrid(List<RelatedProductInciRowDto> rows) {
+        Grid<RelatedProductInciRowDto> grid = new Grid<>(RelatedProductInciRowDto.class, false);
+        grid.addColumn(row -> row.rowNum() == null ? "" : String.valueOf(row.rowNum())).setHeader("Row").setAutoWidth(true);
+        grid.addComponentColumn(this::buildRelatedProductInciName).setHeader("INCI").setAutoWidth(true).setFlexGrow(1);
+        grid.addColumn(row -> nullToEmpty(row.matchStatus())).setHeader("Match status").setAutoWidth(true);
+        grid.addComponentColumn(this::buildRelatedProductInciMatches).setHeader("Matched ingredients").setAutoWidth(true).setFlexGrow(1);
+        prepareGrid(grid, rows);
+        return grid;
+    }
+
+    private Component buildRelatedProductInciName(RelatedProductInciRowDto row) {
+        if (hasText(row.inciUrl())) {
+            return buildOptionalExternalLink(row.inciUrl(), nullToEmpty(row.inciName()));
+        }
+        return wrapColumnText(row.inciName());
+    }
+
+    private Component buildRelatedProductInciMatches(RelatedProductInciRowDto row) {
+        if (row.matches() == null || row.matches().isEmpty()) {
+            return new Span();
+        }
+
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.setWidthFull();
+
+        for (RelatedProductInciMatchDto match : row.matches()) {
+            if (match.ingredientId() != null) {
+                RouterLink link = new RouterLink(
+                        formatRelatedProductInciMatch(match),
+                        IngredientDetailView.class,
+                        new RouteParameters("id", String.valueOf(match.ingredientId()))
+                );
+                content.add(link);
+            } else {
+                content.add(wrapColumnText(formatRelatedProductInciMatch(match)));
+            }
+        }
+
+        return content;
     }
 
     private Component buildRelatedFormulationMatches(RelatedFormulationIngredientDto row) {
@@ -1553,12 +1730,26 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
         };
     }
 
+    private List<String> splitValues(String value) {
+        if (!hasText(value)) {
+            return List.of();
+        }
+        return Arrays.stream(value.split("\\s*,\\s*"))
+                .map(String::trim)
+                .filter(this::hasText)
+                .distinct()
+                .toList();
+    }
+
     private String formatRelationType(String value) {
-        return switch (nullToEmpty(value)) {
-            case "source_ingredient" -> "Source ingredient";
-            case "matched_component" -> "Matched component";
-            default -> nullToEmpty(value);
-        };
+        return splitValues(value).stream()
+                .map(item -> switch (item) {
+                    case "source_ingredient" -> "Найдено на карточке ингредиента";
+                    case "matched_component" -> "Найдено в составе формулы";
+                    case "matched_inci" -> "Найдено в INCI-составе продукта";
+                    default -> item;
+                })
+                .collect(Collectors.joining(", "));
     }
 
     private String formatFormulationTagType(String value) {
@@ -1567,6 +1758,30 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
             case "application" -> "Application";
             case "application_format" -> "Application format";
             case "application_market" -> "Application market";
+            default -> nullToEmpty(value);
+        };
+    }
+
+    private String formatProductTagType(String value) {
+        return switch (nullToEmpty(value)) {
+            case "product_family" -> "Product family";
+            case "chemical_family" -> "Chemical family";
+            case "product_type" -> "Product type";
+            case "application" -> "Application";
+            case "application_format" -> "Application format";
+            case "application_market" -> "Application market";
+            case "consumer_benefit" -> "Consumer benefit";
+            case "regulatory_status" -> "Regulatory status";
+            case "regional_availability" -> "Regional availability";
+            default -> nullToEmpty(value);
+        };
+    }
+
+    private String formatProductPropertyType(String value) {
+        return switch (nullToEmpty(value)) {
+            case "quantitative_property" -> "Quantitative property";
+            case "processing_guideline" -> "Processing guideline";
+            case "solubility" -> "Solubility";
             default -> nullToEmpty(value);
         };
     }
@@ -1640,6 +1855,65 @@ public class IngredientDetailView extends VerticalLayout implements BeforeEnterO
     }
 
     private String formatRelatedFormulationMatch(RelatedFormulationIngredientMatchDto match) {
+        List<String> parts = new ArrayList<>();
+        appendPart(parts, match.ingredientPrimaryName());
+
+        if (hasText(match.matchedName())
+                && !match.matchedName().equalsIgnoreCase(nullToEmpty(match.ingredientPrimaryName()))) {
+            parts.add("matched as: " + match.matchedName());
+        }
+
+        if (parts.isEmpty()) {
+            appendPart(parts, match.sourceRef());
+        }
+        return String.join(" | ", parts);
+    }
+
+    private String formatRelatedProductPropertyValue(RelatedProductPropertyDto property) {
+        List<String> parts = new ArrayList<>();
+        String supplierValue = formatDisplayValue(property.propertyValue());
+        String siValue = formatDisplayValue(property.siValue());
+        String imperialValue = formatDisplayValue(property.imperialValue());
+
+        appendPart(parts, supplierValue);
+        boolean siShown = false;
+        if (hasText(siValue) && !sameDisplayValue(supplierValue, siValue)) {
+            parts.add("SI: " + siValue);
+            siShown = true;
+        }
+        if (hasText(imperialValue)
+                && !sameDisplayValue(supplierValue, imperialValue)
+                && !(siShown && sameDisplayValue(siValue, imperialValue))) {
+            parts.add("Imperial: " + imperialValue);
+        }
+        if (hasText(property.testCondition())) {
+            parts.add("Condition: " + formatDisplayValue(property.testCondition()));
+        }
+        if (hasText(property.testMethod())) {
+            parts.add("Method: " + formatDisplayValue(property.testMethod()));
+        }
+        return String.join("; ", parts);
+    }
+
+    private String formatDisplayValue(String value) {
+        return nullToEmpty(value)
+                .replaceAll("(?i)<sup>\\s*0\\s*</sup>", "⁰")
+                .replaceAll("(?i)<sup>\\s*1\\s*</sup>", "¹")
+                .replaceAll("(?i)<sup>\\s*2\\s*</sup>", "²")
+                .replaceAll("(?i)<sup>\\s*3\\s*</sup>", "³")
+                .replaceAll("(?i)<sup>\\s*4\\s*</sup>", "⁴")
+                .replaceAll("(?i)<sup>\\s*5\\s*</sup>", "⁵")
+                .replaceAll("(?i)<sup>\\s*6\\s*</sup>", "⁶")
+                .replaceAll("(?i)<sup>\\s*7\\s*</sup>", "⁷")
+                .replaceAll("(?i)<sup>\\s*8\\s*</sup>", "⁸")
+                .replaceAll("(?i)<sup>\\s*9\\s*</sup>", "⁹");
+    }
+
+    private boolean sameDisplayValue(String left, String right) {
+        return hasText(left) && hasText(right) && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private String formatRelatedProductInciMatch(RelatedProductInciMatchDto match) {
         List<String> parts = new ArrayList<>();
         appendPart(parts, match.ingredientPrimaryName());
 

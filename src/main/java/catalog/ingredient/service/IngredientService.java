@@ -17,6 +17,7 @@ import catalog.ingredient.repo.IngredientSolventRepository;
 import catalog.ingredient.repo.IngredientTestLogRepository;
 import catalog.ingredient.repo.IngredientWaxPropertyRepository;
 import catalog.ingredient.repo.RelatedFormulationRepository;
+import catalog.ingredient.repo.RelatedProductRepository;
 import catalog.ingredient.repo.SpecialchemViewRepository;
 import catalog.ingredient.service.dto.IngredientDetailDto;
 import java.time.OffsetDateTime;
@@ -43,6 +44,7 @@ public class IngredientService {
     private final IngredientSourceLinkRepository sourceLinkRepository;
     private final FormulaIngredientRepository formulaIngredientRepository;
     private final RelatedFormulationRepository relatedFormulationRepository;
+    private final RelatedProductRepository relatedProductRepository;
     private final SpecialchemViewRepository specialchemViewRepository;
 
     public IngredientService(
@@ -57,6 +59,7 @@ public class IngredientService {
             IngredientSourceLinkRepository sourceLinkRepository,
             FormulaIngredientRepository formulaIngredientRepository,
             RelatedFormulationRepository relatedFormulationRepository,
+            RelatedProductRepository relatedProductRepository,
             SpecialchemViewRepository specialchemViewRepository
     ) {
         this.ingredientRepository = ingredientRepository;
@@ -70,6 +73,7 @@ public class IngredientService {
         this.sourceLinkRepository = sourceLinkRepository;
         this.formulaIngredientRepository = formulaIngredientRepository;
         this.relatedFormulationRepository = relatedFormulationRepository;
+        this.relatedProductRepository = relatedProductRepository;
         this.specialchemViewRepository = specialchemViewRepository;
     }
 
@@ -83,7 +87,7 @@ public class IngredientService {
 
     public List<Ingredient> searchByKind(IngredientKind kind, String query, String function, int offset, int limit) {
         String normalizedQuery = normalize(query);
-        String normalizedFunction = normalize(function);
+        String normalizedFunction = normalizeFunctionKey(function);
         PageRequest pageRequest = pageRequest(offset, limit);
 
         Page<Ingredient> page = normalizedFunction == null
@@ -106,7 +110,7 @@ public class IngredientService {
 
     public int countByKindSearch(IngredientKind kind, String query, String function) {
         String normalizedQuery = normalize(query);
-        String normalizedFunction = normalize(function);
+        String normalizedFunction = normalizeFunctionKey(function);
 
         long count = normalizedFunction == null
                 ? ingredientRepository.countByKindAndQuery(normalizedQuery, kind)
@@ -143,16 +147,20 @@ public class IngredientService {
     }
 
     public List<String> listFunctions(String prefix, int offset, int limit) {
-        String normalizedPrefix = normalize(prefix);
+        String normalizedPrefix = normalizeFunctionKey(prefix);
         PageRequest pageRequest = pageRequest(offset, limit);
 
-        return normalizedPrefix == null
+        List<String> functions = normalizedPrefix == null
                 ? formulationFunctionRepository.findDistinctFunctions(pageRequest)
                 : formulationFunctionRepository.findDistinctFunctionsByPrefix(normalizedPrefix, pageRequest);
+        return functions.stream()
+                .map(this::formatFunctionName)
+                .filter(this::hasText)
+                .toList();
     }
 
     public int countFunctions(String prefix) {
-        String normalizedPrefix = normalize(prefix);
+        String normalizedPrefix = normalizeFunctionKey(prefix);
         long count = normalizedPrefix == null
                 ? formulationFunctionRepository.countDistinctFunctions()
                 : formulationFunctionRepository.countDistinctFunctionsByPrefix(normalizedPrefix);
@@ -178,7 +186,7 @@ public class IngredientService {
                 sourceLinkRepository.findByIngredient_IngredientIdOrderByIngredientSourceLinkId(ingredientId),
                 formulaIngredientRepository.findUsageByIngredientId(ingredientId),
                 specialchemViewRepository.findTechnicalProfileByIngredientId(ingredientId),
-                specialchemViewRepository.findProductsByIngredientId(ingredientId),
+                relatedProductRepository.findByIngredientId(ingredientId),
                 relatedFormulationRepository.findByIngredientId(ingredientId),
                 specialchemViewRepository.findAlternativesByIngredientId(ingredientId),
                 specialchemViewRepository.findPotentialUseByIngredientId(ingredientId)
@@ -286,7 +294,7 @@ public class IngredientService {
                 .collect(Collectors.groupingBy(
                         IngredientFormulationFunctionRepository.IngredientFunctionProjection::getIngredientId,
                         Collectors.mapping(
-                                IngredientFormulationFunctionRepository.IngredientFunctionProjection::getFunctionText,
+                                projection -> formatFunctionName(projection.getFunctionText()),
                                 Collectors.collectingAndThen(
                                         Collectors.toCollection(() -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)),
                                         values -> String.join(", ", values)
@@ -400,6 +408,35 @@ public class IngredientService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeFunctionKey(String value) {
+        String normalized = normalize(value);
+        return normalized == null ? null : normalized.replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private String formatFunctionName(String value) {
+        String normalized = normalizeFunctionKey(value);
+        if (normalized == null) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (String word : normalized.split(" ")) {
+            if (result.length() > 0) {
+                result.append(' ');
+            }
+            result.append(formatFunctionWord(word));
+        }
+        return result.toString();
+    }
+
+    private String formatFunctionWord(String word) {
+        return switch (word) {
+            case "uv" -> "UV";
+            case "ph" -> "pH";
+            default -> word.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + word.substring(1);
+        };
     }
 
     private boolean hasText(String value) {

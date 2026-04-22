@@ -26,7 +26,7 @@ public record IngredientDetailDto(
         List<IngredientSourceLink> sourceLinks,
         List<FormulaIngredient> formulaUsages,
         List<SpecialchemKeyValueRow> technicalProfile,
-        List<SpecialchemValueRow> products,
+        List<RelatedProductDto> products,
         List<RelatedFormulationDto> formulations,
         List<SpecialchemValueRow> alternatives,
         List<SpecialchemValueRow> potentialUse
